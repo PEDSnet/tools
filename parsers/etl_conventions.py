@@ -128,11 +128,12 @@ class Document():
         content = []
         for line in self.fileobj:
             if _table_header.match(line):
-                # skip the '--- | --- | --- | --- | ---' line as well
-                self.fileobj.readline()
                 break
 
             content.append(line)
+
+        # skip the '--- | --- | --- | --- | ---' line as well
+        next(self.fileobj)
 
         # Read field information.
         for line in self.fileobj:
