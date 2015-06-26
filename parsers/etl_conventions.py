@@ -171,8 +171,10 @@ def main(fileobj):
     print(json.dumps(Document(fileobj).parse(), indent=4, sort_keys=True))
 
 if __name__ == '__main__':
+    # No filename provided, read from stdin.
     if len(sys.argv) == 1:
         main(sys.stdin)
+        sys.exit(0)
 
     with open(sys.argv[1]) as f:
         main(f)
