@@ -1,8 +1,0 @@
-#!/bin/bash
-
-python3 ../etl_conventions.py etl_conventions.md | diff expected.json - > /dev/null
-
-# Message stating that the output did not match.
-if [ $? -ne 0 ]; then
-    echo 'Output did not match'
-fi

@@ -5,7 +5,6 @@
 import json
 import re
 import sys
-from signal import signal, SIGPIPE, SIG_DFL
 
 _field = re.compile(r'^(?P<name>[^\|]*)\|(?P<req>[^\|]*)'
                     r'\|(?P<type>[^\|]*)\|(?P<desc>[^\|]*)'
@@ -164,11 +163,9 @@ class Document():
 
 
 def main(fileobj):
-    # restore the signal handler for SIGPIPE, to avoid broken pipe error
-    # when trying to pipe output of this script
-    signal(SIGPIPE, SIG_DFL)
+    output = Document(fileobj).parse()
+    json.dump(output, sys.stdout, indent=4, sort_keys=True)
 
-    print(json.dumps(Document(fileobj).parse(), indent=4, sort_keys=True))
 
 if __name__ == '__main__':
     # No filename provided, read from stdin.
