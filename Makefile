@@ -7,6 +7,8 @@ doc:
 build-generators:
 	go build -o $(GOPATH)/bin/origins-generate-pedsnet-vocab \
 		./generators/vocab
+	go build -o $(GOPATH)/bin/origins-generate-pedsnet-etl \
+		./generators/etl
 
 build: build-generators
 
