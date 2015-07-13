@@ -9,8 +9,13 @@ build-generators:
 		./generators/vocab
 	go build -o $(GOPATH)/bin/origins-generate-pedsnet-etl \
 		./generators/etl
+	go build -o $(GOPATH)/bin/origins-generate-pedsnet-dqa \
+		./generators/dqa
 
-build: build-generators
+build-services:
+	go build -o $(GOPATH)/bin/dqa-files ./services/dqa
+
+build: build-generators build-services
 
 install:
 	go get golang.org/x/tools/cmd/cover
