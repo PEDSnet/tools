@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 )
 
+var buildVersion string
+
 const usage = `dqa-files [-model <model>]
                          [-version <version>]
                          [-root <root>]
@@ -65,6 +67,7 @@ var ReportHeader = []string{
 func PrintUsage() {
 	fmt.Println(usage)
 	flag.PrintDefaults()
+	fmt.Printf("\nBuild: %s\n", buildVersion)
 	os.Exit(1)
 }
 

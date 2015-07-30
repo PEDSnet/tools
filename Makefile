@@ -1,3 +1,5 @@
+GIT_VERSION := $(shell git log -1 --pretty=format:"%h (%ci)")
+
 clean:
 	go clean ./...
 
@@ -13,7 +15,9 @@ build-generators:
 		./generators/dqa
 
 build-services:
-	go build -o $(GOPATH)/bin/dqa-files ./services/dqa
+	cd ./services/dqa && go build \
+		-ldflags "-X main.buildVersion '$(GIT_VERSION)'" \
+		-o $(GOPATH)/bin/dqa-files
 
 build: build-generators build-services
 
