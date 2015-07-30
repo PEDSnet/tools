@@ -152,7 +152,7 @@ func main() {
 
 	flag.StringVar(&root, "root", "", "Root directory of output directory.")
 	flag.StringVar(&model, "model", "pedsnet", "The model the DQA files are generated for.")
-	flag.StringVar(&version, "version", "v2", "The version of the model the DQA files are generated for.")
+	flag.StringVar(&version, "version", "2.0.0", "The version of the model the DQA files are generated for.")
 	flag.StringVar(&url, "data-models", "http://data-models.origins.link", "URL to a DataModels service.")
 
 	flag.Parse()
