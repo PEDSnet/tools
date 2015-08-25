@@ -10,20 +10,30 @@ import (
 )
 
 var (
-	markdownTemplate = `{{with $R := .}}{{range .Ranks}}# {{.Name}}
+	pedsnetTemplate = `{{with $R := .}}{{range .Ranks}}# {{.Name}}
 
 {{range .Tables}}## {{.Name}}
 
-{{range .Fields}}{{range .Results}}{{if .IssueCode}}- [ ] {{$R.Incr}}. **{{.Field}}**: {{.IssueDescription}} {{if .Finding}}({{.Finding}})
-{{end}}{{end}}{{end}}{{end}}
+{{range .Fields}}{{range .Results}}{{if .IssueCode}}- [ ] {{$R.Incr}}. **{{.Field}}**: {{.IssueDescription}} {{if .Finding}}({{.Finding}}){{end}}
+{{end}}{{end}}{{end}}
 {{end}}
 {{end}}{{end}}`
+
+	i2b2Template = `{{with $R := .}}{{range .Tables}}# {{.Name}}
+
+{{range .Fields}}{{range .Results}}{{if .IssueCode}}- [ ] {{$R.Incr}}. **{{.Field}}**: {{.IssueDescription}} {{if .Finding}}({{.Finding}}){{end}}
+{{end}}{{end}}{{end}}
+{{end}}
+{{end}}`
 
 	tmpl *template.Template
 )
 
 func init() {
-	tmpl = template.Must(template.New("dqa").Parse(markdownTemplate))
+	tmpl = template.New("reports")
+
+	template.Must(tmpl.New("pedsnet").Parse(pedsnetTemplate))
+	template.Must(tmpl.New("i2b2").Parse(i2b2Template))
 }
 
 type universalReader struct {
@@ -44,6 +54,28 @@ func (r *universalReader) Read(buf []byte) (int, error) {
 }
 
 var ErrInvalidHeader = errors.New("invalid results header")
+
+type Rank int
+
+func (r Rank) String() string {
+	switch r {
+	case HighRank:
+		return "High"
+	case MediumRank:
+		return "Medium"
+	case LowRank:
+		return "Low"
+	}
+
+	return ""
+}
+
+const (
+	_ Rank = iota
+	HighRank
+	MediumRank
+	LowRank
+)
 
 // Header of a DQA results file.
 var ResultsHeader = []string{
@@ -90,6 +122,17 @@ func csvResult(row []string) *Result {
 		row[i] = strings.TrimSpace(v)
 	}
 
+	var rank Rank
+
+	switch row[11] {
+	case "High":
+		rank = HighRank
+	case "Medium":
+		rank = MediumRank
+	case "Low":
+		rank = LowRank
+	}
+
 	return &Result{
 		Model:            row[0],
 		ModelVersion:     row[1],
@@ -102,7 +145,7 @@ func csvResult(row []string) *Result {
 		IssueDescription: row[8],
 		Finding:          row[9],
 		Prevalence:       row[10],
-		Rank:             row[11],
+		Rank:             rank,
 		SiteResponse:     row[12],
 		Cause:            row[13],
 		Status:           row[14],
@@ -110,145 +153,166 @@ func csvResult(row []string) *Result {
 	}
 }
 
-// Report references a set of results for a DQA analysis.
+type Results []*Result
+
+func (r Results) Less(i, j int) bool {
+	return r[i].Field < r[j].Field
+}
+
+func (r Results) Swap(i, j int) {
+	r[i], r[j] = r[j], r[i]
+}
+
+func (r Results) Len() int {
+	return len(r)
+}
+
+type GroupFunc func(r *Result) (string, bool)
+
+func ByRank(r *Result) (string, bool) {
+	if r.Rank == 0 {
+		return "", false
+	}
+
+	return r.Rank.String(), true
+}
+
+func ByTable(r *Result) (string, bool) {
+	return r.Table, true
+}
+
+func ByField(r *Result) (string, bool) {
+	return r.Field, true
+}
+
+// Report contains a set of results for a DQA analysis.
 type Report struct {
-	ranks map[string]*Rank
-	seq   int
+	Name    string
+	Results Results
+	I2b2    bool
+
+	seq *int
+}
+
+type Reports []*Report
+
+type reportSorter struct {
+	items Reports
+	less  func(a, b *Report) bool
+}
+
+func (s *reportSorter) Len() int {
+	return len(s.items)
+}
+
+func (s *reportSorter) Swap(i, j int) {
+	s.items[i], s.items[j] = s.items[j], s.items[i]
+}
+
+func (s *reportSorter) Less(i, j int) bool {
+	return s.less(s.items[i], s.items[j])
+}
+
+func sortReports(reports []*Report, less func(a, b *Report) bool) {
+	sort.Sort(&reportSorter{
+		items: reports,
+		less:  less,
+	})
+}
+
+// Sub creates a set of sub-reports by the GroupFunc.
+func (r *Report) Sub(f GroupFunc) []*Report {
+	gs := make(map[string]*Report)
+
+	var (
+		g    *Report
+		ok   bool
+		keep bool
+		key  string
+		keys []string
+	)
+
+	for _, s := range r.Results {
+		if r.I2b2 {
+			if s.Cause != "i2b2 transform" || s.Status != "solution proposed" {
+				continue
+			}
+		}
+
+		if key, keep = f(s); !keep {
+			continue
+		}
+
+		if g, ok = gs[key]; !ok {
+			keys = append(keys, key)
+
+			g = &Report{
+				Name: key,
+				seq:  r.seq,
+			}
+
+			gs[key] = g
+		}
+
+		g.Results = append(g.Results, s)
+	}
+
+	sort.Strings(keys)
+
+	groups := make([]*Report, len(keys))
+
+	var i int
+
+	for _, key = range keys {
+		groups[i] = gs[key]
+		i++
+	}
+
+	return groups
+}
+
+func (r *Report) Ranks() []*Report {
+	rs := r.Sub(ByRank)
+
+	sortReports(rs, func(a, b *Report) bool {
+		return a.Results[0].Rank < b.Results[0].Rank
+	})
+
+	return rs
+}
+
+func (r *Report) Tables() []*Report {
+	rs := r.Sub(ByTable)
+
+	sortReports(rs, func(a, b *Report) bool {
+		return a.Name < b.Name
+	})
+
+	return rs
+}
+
+func (r *Report) Fields() []*Report {
+	rs := r.Sub(ByField)
+
+	sortReports(rs, func(a, b *Report) bool {
+		return a.Name < b.Name
+	})
+
+	return rs
 }
 
 func (r *Report) Incr() int {
-	r.seq++
-	return r.seq
+	*r.seq++
+	return *r.seq
 }
 
-// Ranks returns an ordered set of ranked results. Unranked results
-// are not included in the output.
-func (r *Report) Ranks() []*Rank {
-	var (
-		rk  *Rank
-		ok  bool
-		rks []*Rank
-	)
+func NewReport(name string) *Report {
+	var seq int
 
-	if rk, ok = r.ranks["High"]; ok {
-		rks = append(rks, rk)
-	}
-
-	if rk, ok = r.ranks["Medium"]; ok {
-		rks = append(rks, rk)
-	}
-
-	if rk, ok = r.ranks["Low"]; ok {
-		rks = append(rks, rk)
-	}
-
-	return rks
-}
-
-func (r *Report) Add(result *Result) {
-	var (
-		k  *Rank
-		t  *Table
-		f  *Field
-		ok bool
-	)
-
-	// Add the rank if it does not exist.
-	if k, ok = r.ranks[result.Rank]; !ok {
-		k = &Rank{
-			Name:   result.Rank,
-			tables: make(map[string]*Table),
-		}
-
-		r.ranks[k.Name] = k
-	}
-
-	// Add the table if it does not exist.
-	if t, ok = k.tables[result.Table]; !ok {
-		t = &Table{
-			Name:   result.Table,
-			fields: make(map[string]*Field),
-		}
-
-		k.tables[t.Name] = t
-	}
-
-	// Add the field if it does not exist.
-	if f, ok = t.fields[result.Field]; !ok {
-		f = &Field{
-			Name: result.Field,
-		}
-
-		t.fields[f.Name] = f
-	}
-
-	// Append the result.
-	f.Results = append(f.Results, result)
-}
-
-func NewReport() *Report {
 	return &Report{
-		ranks: make(map[string]*Rank),
+		Name: name,
+		seq:  &seq,
 	}
-}
-
-type Rank struct {
-	Name   string
-	tables map[string]*Table
-}
-
-// Fields returns a sorted array of tables by name.
-func (r *Rank) Tables() []*Table {
-	var i int
-
-	names := make([]string, len(r.tables))
-
-	for _, f := range r.tables {
-		names[i] = f.Name
-		i++
-	}
-
-	sort.Strings(names)
-
-	tables := make([]*Table, len(r.tables))
-
-	for i, name := range names {
-		tables[i] = r.tables[name]
-	}
-
-	return tables
-}
-
-type Table struct {
-	Name   string
-	fields map[string]*Field
-}
-
-// Fields returns a sorted array of fields by name.
-func (t *Table) Fields() []*Field {
-	var i int
-
-	names := make([]string, len(t.fields))
-
-	for _, f := range t.fields {
-		names[i] = f.Name
-		i++
-	}
-
-	sort.Strings(names)
-
-	fields := make([]*Field, len(t.fields))
-
-	for i, name := range names {
-		fields[i] = t.fields[name]
-	}
-
-	return fields
-}
-
-type Field struct {
-	Name    string
-	Results []*Result
 }
 
 // Result targets a specific goal an is tied to a Field.
@@ -264,7 +328,7 @@ type Result struct {
 	IssueDescription string
 	Finding          string
 	Prevalence       string
-	Rank             string
+	Rank             Rank
 	SiteResponse     string
 	Cause            string
 	Status           string
@@ -307,13 +371,23 @@ func ReadResults(report *Report, reader io.Reader) (int, error) {
 			return n, err
 		}
 
-		report.Add(csvResult(row))
+		report.Results = append(report.Results, csvResult(row))
 		n++
 	}
+
+	sort.Sort(report.Results)
 
 	return n, nil
 }
 
-func RenderMarkdown(w io.Writer, r *Report) error {
-	return tmpl.Lookup("dqa").Execute(w, r)
+func Render(w io.Writer, r *Report) error {
+	var t *template.Template
+
+	if r.I2b2 {
+		t = tmpl.Lookup("i2b2")
+	} else {
+		t = tmpl.Lookup("pedsnet")
+	}
+
+	return t.Execute(w, r)
 }

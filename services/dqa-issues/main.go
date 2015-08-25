@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -32,9 +33,13 @@ func init() {
 }
 
 func main() {
-	var output string
+	var (
+		i2b2   bool
+		output string
+	)
 
 	flag.StringVar(&output, "o", "-", "Path to output file.")
+	flag.BoolVar(&i2b2, "i2b2", false, "Render a report only containing i2b2-related issues.")
 
 	flag.Parse()
 
@@ -74,7 +79,10 @@ func main() {
 		f   *os.File
 	)
 
-	report := NewReport()
+	report := NewReport("")
+
+	// Toggle i2b2 mode.
+	report.I2b2 = i2b2
 
 	for _, name := range files {
 		if f, err = os.Open(name); err != nil {
@@ -88,16 +96,21 @@ func main() {
 		f.Close()
 	}
 
+	var w io.Writer
+
 	// Render the output.
 	if output == "-" {
-		RenderMarkdown(os.Stdout, report)
+		w = os.Stdout
 	} else {
 		if f, err = os.Create(output); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
 
-		RenderMarkdown(f, report)
-		f.Close()
+		defer f.Close()
+
+		w = f
 	}
+
+	Render(w, report)
 }
