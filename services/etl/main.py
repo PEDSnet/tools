@@ -3,9 +3,10 @@ import os
 import sys
 import json
 import requests
+import logging
 from requests.exceptions import HTTPError
 from flask import Flask, Response
-from parser import Document
+from parser import Parser, logger
 
 
 # Required mediatype for the Accept header to get the raw content.
@@ -30,6 +31,9 @@ class ETLConventionsResource():
         self.commit_last_modified = None
         self.commit_etag = None
 
+        self.cached_model = None
+        self.cached_commit = None
+
     def __call__(self):
         "Entrypoint for Flask routing."
         try:
@@ -42,10 +46,12 @@ class ETLConventionsResource():
         except HTTPError:
             return 503, ''
 
-        resp = Response(json.dumps({
+        content = json.dumps({
             'commit': commit,
             'model': model,
-        }))
+        })
+
+        resp = Response(content)
 
         resp.headers['Content-Type'] = 'application/json'
 
@@ -72,10 +78,14 @@ class ETLConventionsResource():
         self.content_last_modified = resp.headers['Last-Modified']
         self.content_etag = resp.headers['ETag']
 
-        # Wrap decoded bytes in file-like object.
-        buff = io.StringIO(resp.text)
+        # Not modified based on the conditional headers.
+        if resp.status_code == 200:
+            # Wrap decoded bytes in file-like object.
+            buff = io.StringIO(resp.text)
 
-        return Document(buff).parse()
+            self.cached_model = Parser(buff).parse()
+
+        return self.cached_model
 
     def parse_commit(self):
         headers = {
@@ -99,13 +109,17 @@ class ETLConventionsResource():
         self.commit_last_modified = resp.headers['Last-Modified']
         self.commit_etag = resp.headers['ETag']
 
-        # Get the most recent commit.
-        commit = resp.json()[0]
+        # Not modified based on the conditional headers.
+        if resp.status_code == 200:
+            # Get the most recent commit.
+            commit = resp.json()[0]
 
-        return {
-            'sha': commit['sha'],
-            'date': commit['commit']['committer']['date']
-        }
+            self.cached_commit = {
+                'sha': commit['sha'],
+                'date': commit['commit']['committer']['date']
+            }
+
+        return self.cached_commit
 
 
 pedsnet_v2 = ETLConventionsResource(
@@ -156,5 +170,8 @@ if __name__ == '__main__':
     if not GITHUB_AUTH_TOKEN:
         print('Authorization token required.')
         sys.exit(1)
+
+    if debug:
+        logger.setLevel(logging.DEBUG)
 
     app.run(host=host, port=port, debug=debug)
