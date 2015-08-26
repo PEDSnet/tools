@@ -1,6 +1,9 @@
-# ETL Convention Service
+# ETL Conventions Service
 
-Service that exposes a single endpoint for fetching and parsing the [ETL conventions document](https://github.com/PEDSnet/Data_Models/blob/master/PEDSnet/V2/docs/Pedsnet_CDM_V2_OMOPV5_ETL_Conventions.md).
+Service that exposes a single endpoint for fetching and parsing ETL conventions documents:
+
+- [PEDSnet 2.0.0](https://github.com/PEDSnet/Data_Models/blob/master/PEDSnet/V2/docs/Pedsnet_CDM_V2_OMOPV5_ETL_Conventions.md)
+- [i2b2 2.0.0](https://github.com/PEDSnet/Data_Models/blob/master/i2b2/V2/docs/i2b2_pedsnet_v2_etl_conventions.md)
 
 ## Run
 
