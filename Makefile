@@ -19,6 +19,10 @@ build-services:
 		-ldflags "-X main.buildVersion '$(GIT_VERSION)'" \
 		-o $(GOPATH)/bin/dqa-files
 
+	cd ./services/dqa-issues && go build \
+		-ldflags "-X main.buildVersion '$(GIT_VERSION)'" \
+		-o $(GOPATH)/bin/dqa-issues
+
 build: build-generators build-services
 
 install:
