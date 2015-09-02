@@ -38,13 +38,13 @@ class ETLConventionsResource():
         "Entrypoint for Flask routing."
         try:
             model = self.parse_model()
-        except HTTPError:
-            return 503, ''
+        except HTTPError as e:
+            return str(e), 503
 
         try:
             commit = self.parse_commit()
-        except HTTPError:
-            return 503, ''
+        except HTTPError as e:
+            return str(e), 503
 
         content = json.dumps({
             'commit': commit,
