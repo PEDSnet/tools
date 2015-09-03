@@ -9,44 +9,45 @@ import (
 	"path/filepath"
 )
 
-var buildVersion string
-
-const usage = `dqa-issues [options] <path>...
+const reportUsage = `usage: dqa generate-feedback-for-sites [options] <path>...
 
 Generates a Markdown report of issues found in DQA results.
 
 Example:
 
-  dqa-issues -o chop-etlv4.md path/to/CHOP/results
+  dqa generate-feedback-for-sites -out chop-etlv4.md path/to/CHOP/results
 
 Options:
 `
 
+var (
+	reportfs *flag.FlagSet
+
+	i2b2   bool
+	output string
+)
+
 func init() {
-	// Usage prints the usage of the command.
-	flag.Usage = func() {
-		fmt.Println(usage)
-		flag.PrintDefaults()
+	reportfs = flag.NewFlagSet("report", flag.ExitOnError)
+
+	reportfs.Usage = func() {
+		fmt.Fprintln(os.Stderr, reportUsage)
+		reportfs.PrintDefaults()
 		fmt.Printf("\nBuild: %s\n", buildVersion)
 		os.Exit(1)
 	}
+
+	reportfs.StringVar(&output, "out", "-", "Path to output file.")
+	reportfs.BoolVar(&i2b2, "i2b2", false, "Render a report only containing i2b2-related issues.")
 }
 
-func main() {
-	var (
-		i2b2   bool
-		output string
-	)
+func reportMain(args []string) {
+	reportfs.Parse(args)
 
-	flag.StringVar(&output, "o", "-", "Path to output file.")
-	flag.BoolVar(&i2b2, "i2b2", false, "Render a report only containing i2b2-related issues.")
-
-	flag.Parse()
-
-	args := flag.Args()
+	args = reportfs.Args()
 
 	if len(args) < 1 {
-		flag.Usage()
+		reportfs.Usage()
 	}
 
 	// Gather all of the files.

@@ -17,11 +17,7 @@ build-generators:
 build-services:
 	cd ./services/dqa && go build \
 		-ldflags "-X main.buildVersion '$(GIT_VERSION)'" \
-		-o $(GOPATH)/bin/dqa-files
-
-	cd ./services/dqa-issues && go build \
-		-ldflags "-X main.buildVersion '$(GIT_VERSION)'" \
-		-o $(GOPATH)/bin/dqa-issues
+		-o $(GOPATH)/bin/pedsnet-dqa
 
 build: build-generators build-services
 
