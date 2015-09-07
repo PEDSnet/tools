@@ -1,3 +1,20 @@
+# Annotated data dictionary service
+
+Service that exposes a single endpoint for fetching and parsing the PCORnet annotated data dictionary.
+
+## Run
+
+```
+main.py [--token=<token>] [--host=<host>] [--port=<port>] [--debug]
+```
+
+Options:
+
+- `host`
+- `port`
+- `token`, alternately the `GITHUB_AUTH_TOKEN` environment variable can be set.
+
+
 # Parser for annotated data dictionary
 
 Parses an annotated data dictionary excel spreadsheet and extracts the site comments and implementation status.
@@ -10,9 +27,9 @@ pip3 install -r requirements.txt
 ```
 
 ## Run
-
+```
 ./parser data_dictionary.xlsx
-
+```
 See `tests/expected.json` for example output.
 
 Note: when running the parser, you may see the following openpyxl warning:

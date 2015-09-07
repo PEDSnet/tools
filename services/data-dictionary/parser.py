@@ -1,13 +1,21 @@
 #!/usr/bin/env python3
 
-import openpyxl
 import json
+import logging
+import openpyxl
 import sys
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+handler = logging.StreamHandler()
+handler.setLevel(logging.DEBUG)
+logger.addHandler(handler)
 
 
 class Parser():
-    def __init__(self, file_name):
-        self.file_name = file_name
+    def __init__(self, file_obj):
+        self.file_obj = file_obj
         self.dictionary = {}
         self.parsed = False
 
@@ -15,7 +23,7 @@ class Parser():
         if self.parsed:
             return self.dictionary
 
-        wb = openpyxl.load_workbook(filename=self.file_name,
+        wb = openpyxl.load_workbook(filename=self.file_obj,
                                     use_iterators=True)
         worksheet_names = wb.get_sheet_names()
 
@@ -54,15 +62,16 @@ class Parser():
         return self.dictionary
 
 
-def main(file_name):
-    output = Parser(file_name).parse()
+def main(fileobj):
+    output = Parser(fileobj).parse()
     json.dump(output, sys.stdout, indent=4, sort_keys=True)
 
 
 if __name__ == '__main__':
+    # No filename provided, read from stdin.
     if len(sys.argv) == 1:
-        print("Please provide full path to \
-               annotated data dictionary excel spreadsheet.")
+        main(sys.stdin)
         sys.exit(0)
 
-    main(sys.argv[1])
+    with open(sys.argv[1], "rb") as f:
+        main(f)
