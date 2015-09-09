@@ -17,17 +17,15 @@ build-generators:
 build-services:
 	cd ./services/dqa && go build \
 		-ldflags "-X main.buildVersion '$(GIT_VERSION)'" \
-		-o $(GOPATH)/bin/dqa-files
-
-	cd ./services/dqa-issues && go build \
-		-ldflags "-X main.buildVersion '$(GIT_VERSION)'" \
-		-o $(GOPATH)/bin/dqa-issues
+		-o $(GOPATH)/bin/pedsnet-dqa
 
 build: build-generators build-services
 
 install:
 	go get golang.org/x/tools/cmd/cover
 	go get github.com/cespare/prettybench
+	go get github.com/spf13/viper
+	go get github.com/spf13/cobra
 
 test:
 	go test -cover ./...
