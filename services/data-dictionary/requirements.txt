@@ -1,1 +1,4 @@
+docopt
+Flask
 openpyxl
+requests
