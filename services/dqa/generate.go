@@ -3,25 +3,16 @@ package main
 import (
 	"encoding/csv"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
-
-const generateUsage = `usage: dqa generate [options] <site> <extract>
-
-Generates a set of DQA files for the site and extract version.
-
-Example:
-
-    dqa generate -root SecondaryReports/CHOP/ETLv5 CHOP ETLv5
-
-Options:
-`
 
 // Goals that each field can have a metric for.
 var Goals = []string{
@@ -43,8 +34,8 @@ var ExcludedTables = map[string]struct{}{
 	"vocabulary":            struct{}{},
 }
 
-// Header of a DQA report.
-var ReportHeader = []string{
+// Header of a DQA results file.
+var TemplateHeader = []string{
 	"Model",
 	"Model Version",
 	"Data Version",
@@ -137,100 +128,100 @@ func fetchModel(base, model, version string) (*Model, error) {
 	return &m, nil
 }
 
-var (
-	genfs *flag.FlagSet
+var generateCmd = &cobra.Command{
+	Use: "generate-templates <site> <extract>",
 
-	genroot    string
-	genmodel   string
-	genversion string
-	genurl     string
-)
+	Short: "Generates a set of DQA files for the site and extract version.",
 
-func init() {
-	genfs = flag.NewFlagSet("generate", flag.ExitOnError)
+	Example: `
+  pedsnet-dqa generate-templates --root=SecondaryReports/CHOP/ETLv5 CHOP ETLv5`,
 
-	genfs.Usage = func() {
-		fmt.Fprintln(os.Stderr, generateUsage)
-		genfs.PrintDefaults()
-		fmt.Printf("\nBuild: %s\n", buildVersion)
-		os.Exit(1)
-	}
-
-	genfs.StringVar(&genroot, "root", "", "Root directory of output directory.")
-	genfs.StringVar(&genmodel, "model", "pedsnet", "The model the DQA files are generated for.")
-	genfs.StringVar(&genversion, "version", "2.0.0", "The version of the model the DQA files are generated for.")
-	genfs.StringVar(&genurl, "url", "http://data-models.origins.link", "URL to a DataModels service.")
-}
-
-func generateMain(args []string) {
-	genfs.Parse(args)
-
-	args = genfs.Args()
-
-	if len(args) < 2 {
-		genfs.Usage()
-	}
-
-	dqa := NewTemplate(genmodel, genversion, args[0], args[1])
-
-	dir := filepath.Join(genroot, dqa.SiteName, dqa.Extract)
-
-	// Create the necessary directories to write the files to.
-	if err := os.MkdirAll(dir, os.ModeDir|0775); err != nil {
-		log.Fatal("mkdir:", err)
-	}
-
-	m, err := fetchModel(genurl, dqa.Model, dqa.ModelVersion)
-
-	if err != nil {
-		log.Fatal("fetch:", err)
-	}
-
-	var (
-		p   string
-		f   *os.File
-		w   *csv.Writer
-		row = make([]string, len(ReportHeader))
-	)
-
-	// Model level fields.
-	row[0] = m.Name
-	row[1] = m.Version
-	row[2] = dqa.DataVersion
-	row[3] = dqa.Version
-
-	// Create a file per table.
-	for _, table := range m.Tables {
-		if _, ok := ExcludedTables[table.Name]; ok {
-			continue
+	Run: func(cmd *cobra.Command, args []string) {
+		if len(args) < 2 {
+			cmd.Usage()
+			return
 		}
 
-		p = filepath.Join(dir, fmt.Sprintf("%s.csv", table.Name))
+		model := viper.GetString("generate.model")
+		version := viper.GetString("generate.version")
+		root := viper.GetString("generate.root")
+		url := viper.GetString("generate.url")
 
-		if f, err = os.Create(p); err != nil {
-			log.Fatal("create:", err)
+		dqa := NewTemplate(model, version, args[0], args[1])
+
+		dir := filepath.Join(root, dqa.SiteName, dqa.Extract)
+
+		// Create the necessary directories to write the files to.
+		if err := os.MkdirAll(dir, os.ModeDir|0775); err != nil {
+			log.Fatal("mkdir:", err)
 		}
 
-		// Initialize CSV writer and start with the header.
-		w = csv.NewWriter(f)
-		w.Write(ReportHeader)
+		m, err := fetchModel(url, dqa.Model, dqa.ModelVersion)
 
-		// Table level fields.
-		row[4] = table.Name
+		if err != nil {
+			log.Fatal("fetch:", err)
+		}
 
-		for _, field := range table.Fields {
-			row[5] = field.Name
+		var (
+			p   string
+			f   *os.File
+			w   *csv.Writer
+			row = make([]string, len(TemplateHeader))
+		)
 
-			for _, goal := range Goals {
-				row[6] = goal
-				w.Write(row)
+		// Model level fields.
+		row[0] = m.Name
+		row[1] = m.Version
+		row[2] = dqa.DataVersion
+		row[3] = dqa.Version
+
+		// Create a file per table.
+		for _, table := range m.Tables {
+			if _, ok := ExcludedTables[table.Name]; ok {
+				continue
 			}
 
+			p = filepath.Join(dir, fmt.Sprintf("%s.csv", table.Name))
+
+			if f, err = os.Create(p); err != nil {
+				log.Fatal("create:", err)
+			}
+
+			// Initialize CSV writer and start with the header.
+			w = csv.NewWriter(f)
+			w.Write(TemplateHeader)
+
+			// Table level fields.
+			row[4] = table.Name
+
+			for _, field := range table.Fields {
+				row[5] = field.Name
+
+				for _, goal := range Goals {
+					row[6] = goal
+					w.Write(row)
+				}
+
+			}
+
+			w.Flush()
+			f.Close()
 		}
 
-		w.Flush()
-		f.Close()
-	}
+		fmt.Printf("Wrote files to '%s' for model '%s/%s'\n", dir, m.Name, m.Version)
+	},
+}
 
-	fmt.Printf("Wrote files to '%s' for model '%s/%s'\n", dir, m.Name, m.Version)
+func init() {
+	flags := generateCmd.Flags()
+
+	flags.String("root", "", "Root directory of output directory.")
+	flags.String("model", "pedsnet", "The model the DQA files are generated for.")
+	flags.String("version", "2.0.0", "The version of the model the DQA files are generated for.")
+	flags.String("url", "http://data-models.origins.link", "URL to a DataModels service.")
+
+	viper.BindPFlag("generate.root", flags.Lookup("root"))
+	viper.BindPFlag("generate.model", flags.Lookup("model"))
+	viper.BindPFlag("generate.version", flags.Lookup("version"))
+	viper.BindPFlag("generate.url", flags.Lookup("url"))
 }

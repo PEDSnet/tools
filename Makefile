@@ -24,6 +24,8 @@ build: build-generators build-services
 install:
 	go get golang.org/x/tools/cmd/cover
 	go get github.com/cespare/prettybench
+	go get github.com/spf13/viper
+	go get github.com/spf13/cobra
 
 test:
 	go test -cover ./...
