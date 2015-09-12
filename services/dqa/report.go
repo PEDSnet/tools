@@ -67,7 +67,7 @@ var feedbackCmd = &cobra.Command{
 				fmt.Printf("cannot open file %s: %s\n", name, err)
 			}
 
-			if _, err = ReadResults(report, &universalReader{f}); err != nil {
+			if _, err = report.ReadResults(f); err != nil {
 				fmt.Println(err)
 			}
 
@@ -90,7 +90,7 @@ var feedbackCmd = &cobra.Command{
 			w = f
 		}
 
-		Render(w, report)
+		report.Render(w)
 	},
 }
 

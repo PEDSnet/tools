@@ -2,10 +2,8 @@ package main
 
 import (
 	"encoding/csv"
-	"errors"
 	"io"
 	"sort"
-	"strings"
 	"text/template"
 )
 
@@ -36,138 +34,9 @@ func init() {
 	template.Must(tmpl.New("i2b2").Parse(i2b2Template))
 }
 
-type universalReader struct {
-	r io.Reader
-}
-
-func (r *universalReader) Read(buf []byte) (int, error) {
-	n, err := r.r.Read(buf)
-
-	// Replace carriage returns with newlines
-	for i, b := range buf {
-		if b == '\r' {
-			buf[i] = '\n'
-		}
-	}
-
-	return n, err
-}
-
-var ErrInvalidHeader = errors.New("invalid results header")
-
-type Rank int
-
-func (r Rank) String() string {
-	switch r {
-	case HighRank:
-		return "High"
-	case MediumRank:
-		return "Medium"
-	case LowRank:
-		return "Low"
-	}
-
-	return ""
-}
-
-const (
-	_ Rank = iota
-	HighRank
-	MediumRank
-	LowRank
-)
-
-// Header of a DQA results file.
-var ResultsHeader = []string{
-	"model",
-	"model version",
-	"data version",
-	"dqa version",
-	"table",
-	"field",
-	"goal",
-	"issue code",
-	"issue description",
-	"finding",
-	"prevalence",
-	"rank",
-	"site response",
-	"cause",
-	"status",
-	"reviewer",
-}
-
-// CheckHeader checks the header of a results file is valid.
-func CheckHeader(h []string) bool {
-	if len(ResultsHeader) != len(h) {
-		return false
-	}
-
-	for i, f := range h {
-		f = strings.TrimSpace(strings.ToLower(f))
-
-		if f != ResultsHeader[i] {
-			return false
-		}
-	}
-
-	return true
-}
-
-// csvResult builds a result from a CSV row. Since this is position-based,
-// CheckHeader should have been called to confirm the ordering.
-func csvResult(row []string) *Result {
-	// Clean the values.
-	for i, v := range row {
-		row[i] = strings.TrimSpace(v)
-	}
-
-	var rank Rank
-
-	switch row[11] {
-	case "High":
-		rank = HighRank
-	case "Medium":
-		rank = MediumRank
-	case "Low":
-		rank = LowRank
-	}
-
-	return &Result{
-		Model:            row[0],
-		ModelVersion:     row[1],
-		DataVersion:      row[2],
-		DQAVersion:       row[3],
-		Table:            row[4],
-		Field:            row[5],
-		Goal:             row[6],
-		IssueCode:        row[7],
-		IssueDescription: row[8],
-		Finding:          row[9],
-		Prevalence:       row[10],
-		Rank:             rank,
-		SiteResponse:     row[12],
-		Cause:            row[13],
-		Status:           row[14],
-		Reviewer:         row[15],
-	}
-}
-
-type Results []*Result
-
-func (r Results) Less(i, j int) bool {
-	return r[i].Field < r[j].Field
-}
-
-func (r Results) Swap(i, j int) {
-	r[i], r[j] = r[j], r[i]
-}
-
-func (r Results) Len() int {
-	return len(r)
-}
-
-type GroupFunc func(r *Result) (string, bool)
+// ResultGroupFunc is a function that returns the value of the result
+// to be used for comparing and therefore grouping.
+type ResultGroupFunc func(r *Result) (string, bool)
 
 func ByRank(r *Result) (string, bool) {
 	if r.Rank == 0 {
@@ -194,34 +63,55 @@ type Report struct {
 	seq *int
 }
 
-type Reports []*Report
+// ReadResults reads results from an reader and adds them to the report.
+func (r *Report) ReadResults(reader io.Reader) (int, error) {
+	var (
+		n      int
+		err    error
+		result *Result
+	)
 
-type reportSorter struct {
-	items Reports
-	less  func(a, b *Report) bool
+	rr, err := NewResultsReader(reader)
+
+	if err != nil {
+		return 0, err
+	}
+
+	for {
+		result, err = rr.ReadResult()
+
+		if err != nil {
+			if err == io.EOF {
+				return n, nil
+			}
+
+			return n, err
+		}
+
+		r.Results = append(r.Results, result)
+		n++
+	}
+
+	sort.Sort(r.Results)
+
+	return n, nil
 }
 
-func (s *reportSorter) Len() int {
-	return len(s.items)
+// Render renders the report to the io.Writer.
+func (r *Report) Render(w io.Writer) error {
+	var t *template.Template
+
+	if r.I2b2 {
+		t = tmpl.Lookup("i2b2")
+	} else {
+		t = tmpl.Lookup("pedsnet")
+	}
+
+	return t.Execute(w, r)
 }
 
-func (s *reportSorter) Swap(i, j int) {
-	s.items[i], s.items[j] = s.items[j], s.items[i]
-}
-
-func (s *reportSorter) Less(i, j int) bool {
-	return s.less(s.items[i], s.items[j])
-}
-
-func sortReports(reports []*Report, less func(a, b *Report) bool) {
-	sort.Sort(&reportSorter{
-		items: reports,
-		less:  less,
-	})
-}
-
-// Sub creates a set of sub-reports by the GroupFunc.
-func (r *Report) Sub(f GroupFunc) []*Report {
+// Sub creates a set of sub-reports by the ResultGroupFunc.
+func (r *Report) Sub(f ResultGroupFunc) []*Report {
 	gs := make(map[string]*Report)
 
 	var (
@@ -315,79 +205,138 @@ func NewReport(name string) *Report {
 	}
 }
 
-// Result targets a specific goal an is tied to a Field.
-type Result struct {
-	Model            string
-	ModelVersion     string
-	DataVersion      string
-	DQAVersion       string
-	Table            string
-	Field            string
-	Goal             string
-	IssueCode        string
-	IssueDescription string
-	Finding          string
-	Prevalence       string
-	Rank             Rank
-	SiteResponse     string
-	Cause            string
-	Status           string
-	Reviewer         string
-	Source           string
+// Reports is a set of reports.
+type Reports []*Report
+
+type reportSorter struct {
+	items Reports
+	less  func(a, b *Report) bool
 }
 
-// ReadResults reads results from an reader and adds them to the report.
-func ReadResults(report *Report, reader io.Reader) (int, error) {
-	var (
-		err error
-		row []string
-	)
+func (s *reportSorter) Len() int {
+	return len(s.items)
+}
 
-	cr := csv.NewReader(reader)
-	cr.FieldsPerRecord = len(ResultsHeader)
+func (s *reportSorter) Swap(i, j int) {
+	s.items[i], s.items[j] = s.items[j], s.items[i]
+}
+
+func (s *reportSorter) Less(i, j int) bool {
+	return s.less(s.items[i], s.items[j])
+}
+
+func sortReports(reports []*Report, less func(a, b *Report) bool) {
+	sort.Sort(&reportSorter{
+		items: reports,
+		less:  less,
+	})
+}
+
+// ResultsReader reads a DQA exposing a header with mapped positions
+// to the field.
+type ResultsReader struct {
+	Head *ResultsReaderHeader
+	csv  *csv.Reader
+}
+
+// Read reads the next raw row from the underlying CSV reader.
+func (r *ResultsReader) Read() ([]string, error) {
+	return r.csv.Read()
+}
+
+// ReadResult returns a result
+func (r *ResultsReader) ReadResult() (*Result, error) {
+	row, err := r.Read()
+
+	if err != nil {
+		return nil, err
+	}
+
+	var rank Rank
+
+	switch row[r.Head.Rank] {
+	case "High":
+		rank = HighRank
+	case "Medium":
+		rank = MediumRank
+	case "Low":
+		rank = LowRank
+	}
+
+	return &Result{
+		Model:            row[r.Head.Model],
+		ModelVersion:     row[r.Head.ModelVersion],
+		DataVersion:      row[r.Head.DataVersion],
+		DQAVersion:       row[r.Head.DQAVersion],
+		Table:            row[r.Head.Table],
+		Field:            row[r.Head.Field],
+		Goal:             row[r.Head.Goal],
+		IssueCode:        row[r.Head.IssueCode],
+		IssueDescription: row[r.Head.IssueDescription],
+		Finding:          row[r.Head.Finding],
+		Prevalence:       row[r.Head.Prevalence],
+		Rank:             rank,
+		SiteResponse:     row[r.Head.SiteResponse],
+		Cause:            row[r.Head.Cause],
+		Status:           row[r.Head.Status],
+		Reviewer:         row[r.Head.Reviewer],
+	}, nil
+}
+
+// NewResultsReader initializes a new results reader.
+func NewResultsReader(r io.Reader) (*ResultsReader, error) {
+	cr := csv.NewReader(&UniversalReader{r})
+
+	cr.FieldsPerRecord = len(ResultsTemplateHeader)
 	cr.Comment = '#'
 	cr.LazyQuotes = true
 	cr.TrimLeadingSpace = true
 
-	// Read the header.
-	if row, err = cr.Read(); err != nil {
-		return 0, err
+	row, err := cr.Read()
+
+	if err != nil {
+		return nil, err
 	}
 
-	if !CheckHeader(row) {
-		return 0, ErrInvalidHeader
+	head, err := NewResultsHeader(row)
+
+	if err != nil {
+		return nil, err
 	}
 
-	var n int
-
-	for {
-		row, err = cr.Read()
-
-		if err != nil {
-			if err == io.EOF {
-				return n, nil
-			}
-
-			return n, err
-		}
-
-		report.Results = append(report.Results, csvResult(row))
-		n++
-	}
-
-	sort.Sort(report.Results)
-
-	return n, nil
+	return &ResultsReader{
+		Head: head,
+		csv:  cr,
+	}, nil
 }
 
-func Render(w io.Writer, r *Report) error {
-	var t *template.Template
+// ResultsWriter reads a DQA exposing a header with mapped positions
+// to the field.
+type ResultsWriter struct {
+	csv  *csv.Writer
+	head bool
+}
 
-	if r.I2b2 {
-		t = tmpl.Lookup("i2b2")
-	} else {
-		t = tmpl.Lookup("pedsnet")
+// Read reads the next raw row from the underlying CSV reader.
+func (w *ResultsWriter) Write(r *Result) error {
+	if !w.head {
+		if err := w.csv.Write(ResultsTemplateHeader); err != nil {
+			return err
+		}
+
+		w.head = true
 	}
 
-	return t.Execute(w, r)
+	return w.csv.Write(r.Row())
+}
+
+func (w *ResultsWriter) Flush() error {
+	w.csv.Flush()
+	return w.csv.Error()
+}
+
+func NewResultsWriter(w io.Writer) *ResultsWriter {
+	return &ResultsWriter{
+		csv: csv.NewWriter(w),
+	}
 }

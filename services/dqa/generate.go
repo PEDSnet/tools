@@ -2,131 +2,14 @@ package main
 
 import (
 	"encoding/csv"
-	"encoding/json"
 	"fmt"
 	"log"
-	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
-
-// Goals that each field can have a metric for.
-var Goals = []string{
-	"Fidelity",
-	"Consistency",
-	"Accuracy",
-	"Feasibility",
-}
-
-var ExcludedTables = map[string]struct{}{
-	"concept":               struct{}{},
-	"concept_ancestor":      struct{}{},
-	"concept_class":         struct{}{},
-	"concept_relationship":  struct{}{},
-	"concept_synonym":       struct{}{},
-	"domain":                struct{}{},
-	"source_to_concept_map": struct{}{},
-	"relationship":          struct{}{},
-	"vocabulary":            struct{}{},
-}
-
-// Header of a DQA results file.
-var TemplateHeader = []string{
-	"Model",
-	"Model Version",
-	"Data Version",
-	"DQA Version",
-	"Table",
-	"Field",
-	"Goal",
-	"Issue Code",
-	"Issue Description",
-	"Finding",
-	"Prevalence",
-	"Rank",
-	"Site Response",
-	"Cause",
-	"Status",
-	"Reviewer",
-}
-
-type Template struct {
-	Model        string
-	ModelVersion string
-	SiteName     string
-	Extract      string
-	DataVersion  string
-	Version      string
-}
-
-func NewTemplate(m, v, s, e string) *Template {
-	return &Template{
-		Model:        m,
-		ModelVersion: v,
-		SiteName:     s,
-		Extract:      e,
-		DataVersion:  fmt.Sprintf("%s-%s-%s-%s", m, v, s, e),
-		Version:      "0",
-	}
-}
-
-type Model struct {
-	Name    string
-	Version string
-	Tables  []*Table
-}
-
-type Table struct {
-	Name    string
-	Model   string
-	Version string
-	Fields  []*Field
-}
-
-type Field struct {
-	Name  string
-	Table string
-}
-
-// modelFields retrieves all model fields from the DataModels service.
-func fetchModel(base, model, version string) (*Model, error) {
-	u, err := url.Parse(base)
-
-	if err != nil {
-		return nil, err
-	}
-
-	u.Path = fmt.Sprintf("models/%s/%s", model, version)
-
-	req, err := http.NewRequest("GET", u.String(), nil)
-
-	if err != nil {
-		return nil, err
-	}
-
-	// We want the JSON output.
-	req.Header.Add("Accept", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer resp.Body.Close()
-
-	var m Model
-
-	if err = json.NewDecoder(resp.Body).Decode(&m); err != nil {
-		return nil, err
-	}
-
-	return &m, nil
-}
 
 var generateCmd = &cobra.Command{
 	Use: "generate-templates <site> <extract>",
@@ -147,7 +30,7 @@ var generateCmd = &cobra.Command{
 		root := viper.GetString("generate.root")
 		url := viper.GetString("generate.url")
 
-		dqa := NewTemplate(model, version, args[0], args[1])
+		dqa := NewResultsTemplate(model, version, args[0], args[1])
 
 		dir := filepath.Join(root, dqa.SiteName, dqa.Extract)
 
@@ -156,7 +39,7 @@ var generateCmd = &cobra.Command{
 			log.Fatal("mkdir:", err)
 		}
 
-		m, err := fetchModel(url, dqa.Model, dqa.ModelVersion)
+		m, err := FetchModel(url, dqa.Model, dqa.ModelVersion)
 
 		if err != nil {
 			log.Fatal("fetch:", err)
@@ -166,7 +49,7 @@ var generateCmd = &cobra.Command{
 			p   string
 			f   *os.File
 			w   *csv.Writer
-			row = make([]string, len(TemplateHeader))
+			row = make([]string, len(ResultsTemplateHeader))
 		)
 
 		// Model level fields.
@@ -189,7 +72,7 @@ var generateCmd = &cobra.Command{
 
 			// Initialize CSV writer and start with the header.
 			w = csv.NewWriter(f)
-			w.Write(TemplateHeader)
+			w.Write(ResultsTemplateHeader)
 
 			// Table level fields.
 			row[4] = table.Name

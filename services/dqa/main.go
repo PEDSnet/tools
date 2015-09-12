@@ -17,6 +17,7 @@ var mainCmd = &cobra.Command{
 func main() {
 	mainCmd.AddCommand(generateCmd)
 	mainCmd.AddCommand(feedbackCmd)
+	mainCmd.AddCommand(rankIssuesCmd)
 
 	mainCmd.Execute()
 }
