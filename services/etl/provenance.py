@@ -10,14 +10,15 @@ is not available.
 
 The structure of an entity is as follows:
 
-- `domain` - The top-level domain the entity should be written to.
-- `ident` - The unique identity value of the entity. Entities that do
-not (or should not) be referenced by other entities do require this
-to be set.
+- `domain` - The domain the entity applies to.
+- `name` - The unique identity value of the entity. An identity should
+be provided if the entity is a continuant in the domain so all occurrents
+can be associated.
 - `labels` - A set of labels for the entity. Each label provides a
 secondary index for the entity.
 - `attrs` - A set of key-value pairs where the key is a identity value
 and the value is a literal or identity value.
+- `refs` - A set of references to entities that are related.
 
 An identity value is a reference to another entity. A reference value
 consists of a domain and name. A string encoded reference value is
@@ -80,28 +81,17 @@ def validate(message):
 
 
 class entity():
-    def __init__(self, data, timestamp):
+    def __init__(self, data, timestamp, batch=None):
+        self.batch = batch or ''
         self.timestamp = timestamp
         self.spec = data.get('spec', SPEC_VERSION)
-        self.domain = data.get('domain')
-        self.labels = set(data.get('labels', ()))
+        self.domain = data.get('domain', '')
+        self.name = data.get('name', '')
+        self.labels = data.get('labels', ())
         self.attrs = data.get('attrs', {})
-
-        self._ident = ''
-        self._domain = self.domain
-
-        if 'ident' in data:
-            ident = data['ident'].split(':')
-
-            if len(ident) == 2:
-                self._ident, self._domain = ident
-            else:
-                self._ident = ident[0]
+        self.refs = data.get('refs', {})
 
     def __getitem__(self, key):
-        if key == 'ident':
-            return self.ident
-
         if key.startswith('_'):
             raise KeyError
 
@@ -113,22 +103,27 @@ class entity():
     @property
     def ident(self):
         return {
-            'domain': self._domain,
-            'ident': self._ident,
+            'domain': self.domain,
+            'name': self.name,
         }
 
     def json(self):
         return validate({
+            'batch': self.batch,
             'timestamp': self.timestamp,
             'spec': self.spec,
             'domain': self.domain,
-            'ident': self.ident,
-            'labels': tuple(self.labels),
+            'name': self.name,
+            'labels': tuple(set(self.labels)),
             'attrs': self.attrs,
+            'refs': self.refs,
         })
 
 
 def generate(file_name, domain, model, commit):
+    # The unique batch ID is the commit SHA.
+    batch = commit['sha']
+
     # Timestamp of when the entity became available.
     timestamp = parse_date(commit['commit']['committer']['date'])
 
@@ -140,59 +135,63 @@ def generate(file_name, domain, model, commit):
 
     committer = entity({
         'domain': domain,
-        'ident': committer['email'],
-        'labels': ['person', 'agent'],
+        'name': committer['email'],
+        'labels': ['Person', 'Agent'],
         'attrs': committer,
-    }, timestamp)
+    }, timestamp, batch=batch)
 
     author = commit['commit']['author']
 
     author = entity({
         'domain': domain,
-        'ident': author['email'],
-        'labels': ['person', 'agent'],
+        'name': author['email'],
+        'labels': ['Person', 'Agent'],
         'attrs': author,
-    }, timestamp)
+    }, timestamp, batch=batch)
 
     # The git commit that corresponds to the current state. The metadata
     # of the commit does not technically need to be copied here. A consumer
     # of this data could lookup the commit and fetch the data manually.
     commit = entity({
         'domain': domain,
-        'ident': commit['sha'],
-        'labels': ['commit'],
+        'name': commit['sha'],
+        'labels': ['Commit'],
         'attrs': {
             'sha': commit['sha'],
             'url': commit['commit']['url'],
             'message': commit['commit']['message'],
             'commit_time': commit['commit']['committer']['date'],
             'author_time': commit['commit']['author']['date'],
+        },
+        'refs': {
             'committer': committer.ident,
-            'author': committer.ident,
+            'author': author.ident,
         }
-    }, timestamp)
+    }, timestamp, batch=batch)
 
     # The source file containing the data the model, tables, and fields
     # were extracted from.
     source_file = entity({
         'domain': domain,
-        'ident': file_name,
-        'labels': ['file'],
+        'name': file_name,
+        'labels': ['File'],
         'attrs': {
             'path': file_name,
+        },
+        'refs': {
             'commit': commit.ident,
-        }
-    }, timestamp)
+        },
+    }, timestamp, batch=batch)
 
     service = entity({
         'domain': domain,
-        'ident': 'pedsnet/etlconv',
-        'labels': ['agent', 'service'],
+        'name': 'pedsnet/etlconv',
+        'labels': ['Agent', 'Service'],
         'attrs': {
             'name': 'PEDSnet ETL Conventions Service',
             'version': __version__,
         },
-    }, timestamp)
+    }, timestamp, batch=batch)
 
     # Append the entities.
     entities.append(service)
@@ -206,13 +205,15 @@ def generate(file_name, domain, model, commit):
     # and the entity.
     base_event = {
         'domain': domain,
-        'labels': ['event'],
+        'name': 'event_%s' % commit['name'],
+        'labels': ['Event', 'EntitiesExtracted'],
         'attrs': {
-            'event': 'extracted from file',
+            'event': 'EntitiesExtracted',
+        },
+        'refs': {
             'file': source_file.ident,
             'service': service.ident,
-            'entity': {},
-        }
+        },
     }
 
     model = dict(model)
@@ -220,60 +221,61 @@ def generate(file_name, domain, model, commit):
 
     model = entity({
         'domain': domain,
-        'ident': model['name'],
-        'labels': ['model'],
+        'name': model['name'],
+        'labels': ['Model'],
         'attrs': model,
-    }, timestamp)
+    }, timestamp, batch=batch)
 
     entities.append(model)
 
-    event = entity(deepcopy(base_event), timestamp)
-    event['attrs']['entity'] = model.ident
+    event = entity(deepcopy(base_event), timestamp, batch=batch)
+    event['refs']['entity'] = model.ident
     entities.append(event)
 
     for table_name, attrs in tables.items():
-        # Copy to mutate the dict.
         attrs = dict(attrs)
         fields = attrs.pop('fields')
-
         attrs['name'] = table_name
-        attrs['model'] = model.ident
 
         table_id = table_name
 
         table = entity({
             'domain': domain,
-            'ident': table_id,
-            'labels': ['table'],
+            'name': table_id,
+            'labels': ['Table'],
             'attrs': attrs,
-        }, timestamp)
+            'refs': {
+                'model': model.ident,
+            },
+        }, timestamp, batch=batch)
 
         entities.append(table)
 
-        event = entity(deepcopy(base_event), timestamp)
-        event['attrs']['entity'] = table.ident
+        event = entity(deepcopy(base_event), timestamp, batch=batch)
+        event['refs']['entity'] = table.ident
         entities.append(event)
 
         for field_name, attrs in fields.items():
             attrs = dict(attrs)
+            attrs['name'] = field_name
 
             field_id = '{}.{}'.format(table_name, field_name)
 
-            attrs['table'] = table.ident
-            attrs['model'] = model.ident
-            attrs['name'] = field_name
-
             field = entity({
                 'domain': domain,
-                'ident': field_id,
-                'labels': ['field'],
+                'name': field_id,
+                'labels': ['Field'],
                 'attrs': attrs,
-            }, timestamp)
+                'refs': {
+                    'table': table.ident,
+                    'model': model.ident,
+                },
+            }, timestamp, batch=batch)
 
             entities.append(field)
 
-            event = entity(deepcopy(base_event), timestamp)
-            event['attrs']['entity'] = field.ident
+            event = entity(deepcopy(base_event), timestamp, batch=batch)
+            event['refs']['entity'] = field.ident
             entities.append(event)
 
     return entities
