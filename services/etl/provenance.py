@@ -26,26 +26,11 @@ consists of a domain and name. A string encoded reference value is
 an ident can represented as an object with keys `domain` and `name`.
 """
 from copy import deepcopy
-from datetime import datetime
 from version import __version__
+from dateutil import parse_date
 
 
 SPEC_VERSION = '1.0.0'
-
-
-DATETIME_FORMATS = (
-    '%Y-%m-%dT%H:%M:%SZ',
-    '%Y-%m-%dT%H:%M:%S',
-    '%Y-%m-%d',
-)
-
-
-def parse_date(s):
-    for fmt in DATETIME_FORMATS:
-        try:
-            return datetime.strptime(s, fmt).timestamp()
-        except ValueError:
-            pass
 
 
 def validate(message):
