@@ -7,6 +7,7 @@ from requests.exceptions import HTTPError
 from flask import Flask, Response, request
 from logger import logger
 from gitutil import get_content, get_commits, get_commit, dedupe_commits
+from cmputil import Changelog
 
 # Token for GitHub authorization. Set on startup.
 GITHUB_AUTH_TOKEN = None
@@ -225,8 +226,34 @@ class Resource():
 
         return resp
 
-    def serve_log(self):
-        "HTTP handler for serving changes."
+    def serve_changes_all(self):
+        "HTTP handler for serving the change log."
+        prov = generate_all_provenance(self.file_paths, self.model_name)
+
+        cl = Changelog()
+
+        log = []
+
+        for e in prov:
+            if not {'Model', 'Table', 'Field'} & set(e.labels):
+                continue
+
+            c = cl.evaluate(e.json())
+
+            if c is not None:
+                log.append(c)
+
+        if request.accept_mimetypes.best == 'application/json; boundary=NL':
+            content = ldjson(log)
+            content_type = 'application/json; boundary=NL'
+        else:
+            content = json.dumps(log, default=json_defaults)
+            content_type = 'application/json'
+
+        resp = Response(content)
+        resp.headers['content-type'] = content_type
+
+        return resp
 
 
 pedsnet = Resource(
@@ -268,6 +295,11 @@ app.add_url_rule('/pedsnet/prov/all',
                  pedsnet.serve_full_provenance,
                  methods=['GET'])
 
+app.add_url_rule('/pedsnet/prov/changes/all',
+                 'pedsnet_changes_all',
+                 pedsnet.serve_changes_all,
+                 methods=['GET'])
+
 app.add_url_rule('/i2b2',
                  'i2b2',
                  i2b2.serve_document,
@@ -287,6 +319,12 @@ app.add_url_rule('/i2b2/prov/all',
                  'i2b2_prov_all',
                  i2b2.serve_full_provenance,
                  methods=['GET'])
+
+app.add_url_rule('/i2b2/prov/changes/all',
+                 'i2b2_changes_all',
+                 i2b2.serve_changes_all,
+                 methods=['GET'])
+
 
 if __name__ == '__main__':
     usage = """PEDSnet ETL Conventions Service
