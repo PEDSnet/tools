@@ -106,7 +106,7 @@ var ruleNonMatchTests = []Result{
 
 func TestRuleMatches(t *testing.T) {
 	for res, erank := range ruleMatchTests {
-		arank, ok := RunRules(&res)
+		_, arank, ok := RunRules(&res)
 
 		if !ok {
 			t.Errorf("expected to match: %s", res)
@@ -118,7 +118,7 @@ func TestRuleMatches(t *testing.T) {
 
 func TestRuleNonMatches(t *testing.T) {
 	for _, res := range ruleNonMatchTests {
-		_, ok := RunRules(&res)
+		_, _, ok := RunRules(&res)
 
 		if ok {
 			t.Errorf("did not expect to match: %s", res)
