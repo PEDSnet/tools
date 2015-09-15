@@ -11,23 +11,57 @@ import (
 )
 
 var (
-	pedsnetTemplate = `{{with $R := .}}{{range .Ranks}}# {{.Name}}
-
+	pedsnetTemplate = `{{with $R := .}}{{range .Sections}}# {{.Name}}
 {{range .Tables}}## {{.Name}}
+{{range .Ranks}}### {{.Name}}
 
 {{range .Fields}}{{range .Results}}{{if .IssueCode}}- [ ] {{$R.Incr}}. **{{.Field}}**: {{.IssueDescription}} {{if .Finding}}({{.Finding}}){{end}}
 {{end}}{{end}}{{end}}
 {{end}}
-{{end}}{{end}}`
+{{end}}{{end}}{{end}}`
 
 	i2b2Template = `{{with $R := .}}{{range .Tables}}# {{.Name}}
 
-{{range .Fields}}{{range .Results}}{{if .IssueCode}}- [ ] {{$R.Incr}}. **{{.Field}}**: {{.IssueDescription}} {{if .Finding}}({{.Finding}}){{end}}
+{{range .Fields}}{{range .Results}}- [ ] {{$R.Incr}}. **{{.Field}}**: {{.IssueDescription}} {{if .Finding}}({{.Finding}})
 {{end}}{{end}}{{end}}
 {{end}}
 {{end}}`
 
 	tmpl *template.Template
+)
+
+var (
+	tableSections = map[string]map[string]int{
+		"Demographic Tables": {
+			"person":             0,
+			"death":              1,
+			"observation_period": 2,
+		},
+
+		"Fact Tables": {
+			"visit_occurrence":     0,
+			"condition_occurrence": 1,
+			"procedure_occurrence": 2,
+			"drug_exposure":        3,
+			"observation":          4,
+			"measurement":          5,
+			"fact_relationship":    6,
+			"visit_payer":          7,
+		},
+
+		"Admin Tables": {
+			"care_site": 0,
+			"location":  1,
+			"provider":  2,
+		},
+	}
+
+	sectionOrder = map[string]int{
+		"Demographic Tables": 0,
+		"Fact Tables":        1,
+		"Admin Tables":       2,
+		"Other Tables":       3,
+	}
 )
 
 func init() {
@@ -53,11 +87,17 @@ func ByTable(r *Result) (string, bool) {
 	return r.Table, true
 }
 
-func ByField(r *Result) (string, bool) {
-	if r.Status == "persistent" {
-		return "", false
+func BySection(r *Result) (string, bool) {
+	for section, tables := range tableSections {
+		if _, ok := tables[r.Table]; ok {
+			return section, true
+		}
 	}
 
+	return "Other Tables", true
+}
+
+func ByField(r *Result) (string, bool) {
 	return r.Field, true
 }
 
@@ -120,6 +160,10 @@ type Report struct {
 	I2b2    bool
 
 	seq *int
+}
+
+func (r *Report) String() string {
+	return r.Name
 }
 
 // ReadResults reads results from an reader and adds them to the report.
@@ -188,6 +232,14 @@ func (r *Report) Sub(f ResultGroupFunc) []*Report {
 			}
 		}
 
+		if s.Status == "persistent" {
+			continue
+		}
+
+		if s.IssueCode == "" {
+			continue
+		}
+
 		if key, keep = f(s); !keep {
 			continue
 		}
@@ -208,23 +260,24 @@ func (r *Report) Sub(f ResultGroupFunc) []*Report {
 
 	sort.Strings(keys)
 
-	groups := make([]*Report, len(keys))
-
-	var i int
+	var groups []*Report
 
 	for _, key = range keys {
-		groups[i] = gs[key]
-		i++
+		if len(gs[key].Results) == 0 {
+			continue
+		}
+
+		groups = append(groups, gs[key])
 	}
 
 	return groups
 }
 
-func (r *Report) Ranks() []*Report {
-	rs := r.Sub(ByRank)
+func (r *Report) Sections() []*Report {
+	rs := r.Sub(BySection)
 
 	sortReports(rs, func(a, b *Report) bool {
-		return a.Results[0].Rank < b.Results[0].Rank
+		return sectionOrder[a.Name] < sectionOrder[b.Name]
 	})
 
 	return rs
@@ -235,6 +288,16 @@ func (r *Report) Tables() []*Report {
 
 	sortReports(rs, func(a, b *Report) bool {
 		return a.Name < b.Name
+	})
+
+	return rs
+}
+
+func (r *Report) Ranks() []*Report {
+	rs := r.Sub(ByRank)
+
+	sortReports(rs, func(a, b *Report) bool {
+		return a.Results[0].Rank < b.Results[0].Rank
 	})
 
 	return rs
