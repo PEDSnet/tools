@@ -51,6 +51,10 @@ func ByTable(r *Result) (string, bool) {
 }
 
 func ByField(r *Result) (string, bool) {
+	if r.Status == "persistent" {
+		return "", false
+	}
+
 	return r.Field, true
 }
 
