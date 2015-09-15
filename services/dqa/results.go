@@ -3,6 +3,9 @@ package main
 import (
 	"encoding/csv"
 	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"sort"
 	"text/template"
 )
@@ -56,6 +59,58 @@ func ByField(r *Result) (string, bool) {
 	}
 
 	return r.Field, true
+}
+
+// ReadResultsFromDir reads all files in a directory and returns reports
+// for each.
+func ReadResultsFromDir(dir string, skip bool) (map[string]*Report, error) {
+	fns, err := ioutil.ReadDir(dir)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		path string
+		f    *os.File
+	)
+
+	reports := make(map[string]*Report)
+
+	// Iterate over each CSV file in the directory.
+	for _, fi := range fns {
+		if fi.IsDir() {
+			continue
+		}
+
+		path = filepath.Join(dir, fi.Name())
+
+		if f, err = os.Open(path); err != nil {
+			if skip {
+				continue
+			}
+
+			return nil, err
+		}
+
+		report := &Report{}
+		reports[fi.Name()] = report
+
+		_, err := report.ReadResults(f)
+
+		f.Close()
+
+		// Presumably not a valid file.
+		if err != nil {
+			if skip {
+				continue
+			}
+
+			return nil, err
+		}
+	}
+
+	return reports, nil
 }
 
 // Report contains a set of results for a DQA analysis.

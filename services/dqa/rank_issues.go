@@ -2,10 +2,8 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -25,8 +23,7 @@ var rankIssuesCmd = &cobra.Command{
 			return
 		}
 
-		// Ensure this is a directory.
-		fns, err := ioutil.ReadDir(args[0])
+		reports, err := ReadResultsFromDir(args[0], true)
 
 		if err != nil {
 			log.Fatal(err)
@@ -37,31 +34,7 @@ var rankIssuesCmd = &cobra.Command{
 			f    *os.File
 		)
 
-		// Iterate over each CSV file in the directory.
-		for _, fi := range fns {
-			if fi.IsDir() {
-				continue
-			}
-
-			path = filepath.Join(args[0], fi.Name())
-
-			if f, err = os.Open(path); err != nil {
-				log.Printf("error opening file: %s", err)
-				continue
-			}
-
-			report := &Report{}
-
-			_, err := report.ReadResults(f)
-
-			f.Close()
-
-			// Presumably not a valid file.
-			if err != nil {
-				log.Printf("error reading results: %s", err)
-				continue
-			}
-
+		for _, report := range reports {
 			changed := false
 
 			for i, r := range report.Results {
