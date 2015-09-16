@@ -22,7 +22,7 @@ Copied persistent issues from 'ETLv3'
 
 ## Rank Issues
 
-The `assign-rank-to-issues` command assigns a rank to issues based on a set of pre-determined rules.
+The `assign-rank-to-issues` command assigns a rank to issues based on a set of pre-determined rules. The set of rules are listed maintained [here](https://github.com/PEDSnet/Data-Quality/tree/master/SecondaryReports/Ranking).
 
 Do a *dry run* on a set of results:
 
