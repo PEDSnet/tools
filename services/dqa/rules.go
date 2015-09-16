@@ -157,6 +157,7 @@ var AdminRules = &RuleSet{
 			Map: map[[2]string]Rank{
 				{"g1-002", "high"}:   HighRank,
 				{"g1-002", "medium"}: HighRank,
+				{"g2-006", "full"}:   HighRank,
 			},
 		},
 
@@ -261,26 +262,6 @@ var DemographicRules = &RuleSet{
 				{"g2-010", "low"}: MediumRank,
 			},
 		},
-
-		// Fact rules
-		{
-			Conditions: []Condition{
-				isPrimaryKey,
-			},
-			Map: map[[2]string]Rank{
-				{"g4-001", "full"}: HighRank,
-			},
-		},
-
-		{
-			Conditions: []Condition{
-				isSourceValue,
-			},
-			Map: map[[2]string]Rank{
-				{"g2-011", "full"}: HighRank,
-				{"g4-002", "full"}: HighRank,
-			},
-		},
 	},
 }
 
@@ -288,7 +269,7 @@ var FactRules = &RuleSet{
 	Name: "Fact",
 
 	Tables: []string{
-		"conditin_occurrence",
+		"condition_occurrence",
 		"drug_exposure",
 		"fact_relationship",
 		"measurement",
@@ -299,6 +280,30 @@ var FactRules = &RuleSet{
 	},
 
 	Rules: []*Rule{
+		{
+			Conditions: []Condition{
+				isPrimaryKey,
+			},
+			Map: map[[2]string]Rank{
+				{"g4-001", "full"}:   HighRank,
+				{"g2-013", "medium"}: HighRank,
+				{"g2-013", "high"}:   HighRank,
+				{"g2-013", "low"}:    HighRank,
+			},
+		},
+
+		{
+			Conditions: []Condition{
+				isSourceValue,
+			},
+			Map: map[[2]string]Rank{
+				{"g2-011", "full"}:    HighRank,
+				{"g4-002", "full"}:    HighRank,
+				{"g2-013", "unknown"}: MediumRank,
+				{"g2-004", "full"}:    HighRank,
+			},
+		},
+
 		// Custom match.
 		{
 			Conditions: []Condition{
@@ -326,23 +331,23 @@ var FactRules = &RuleSet{
 				},
 			},
 			Map: map[[2]string]Rank{
-				{"g2-013", "high"}:   HighRank,
-				{"g2-005", "high"}:   MediumRank,
-				{"g2-005", "medium"}: MediumRank,
+				{"g2-013", "high"}:    HighRank,
+				{"g2-005", "high"}:    MediumRank,
+				{"g2-005", "medium"}:  MediumRank,
+				{"g3-002", "unknown"}: MediumRank,
 			},
 		},
 
 		{
 			Conditions: []Condition{
-				isOther,
+				isDateYear,
 			},
 			Map: map[[2]string]Rank{
-				{"g2-013", "high"}:    LowRank,
-				{"g2-011", "high"}:    HighRank,
-				{"g4-002", "high"}:    HighRank,
-				{"g2-001", "unknown"}: LowRank,
-				{"g2-007", "high"}:    LowRank,
-				{"g2-007", "medium"}:  LowRank,
+				{"g2-009", "low"}:     MediumRank,
+				{"g2-008", "unknown"}: MediumRank,
+				{"g2-010", "low"}:     LowRank,
+				{"g2-013", "low"}:     MediumRank,
+				{"g2-003", "low"}:     MediumRank,
 			},
 		},
 
@@ -357,18 +362,25 @@ var FactRules = &RuleSet{
 				{"g1-001", "full"}:    HighRank,
 				{"g4-002", "full"}:    HighRank,
 				{"g1-002", "high"}:    HighRank,
+				{"g2-006", "high"}:    HighRank,
+				{"g2-006", "full"}:    HighRank,
 				{"g2-006", "low"}:     MediumRank,
 			},
 		},
 
 		{
 			Conditions: []Condition{
-				isDateYear,
+				isOther,
 			},
 			Map: map[[2]string]Rank{
-				{"g2-009", "low"}:     MediumRank,
-				{"g2-008", "unknown"}: MediumRank,
-				{"g2-010", "low"}:     LowRank,
+				{"g2-013", "high"}:    LowRank,
+				{"g2-011", "high"}:    HighRank,
+				{"g2-011", "full"}:    HighRank,
+				{"g4-002", "full"}:    HighRank,
+				{"g2-001", "unknown"}: LowRank,
+				{"g2-007", "high"}:    LowRank,
+				{"g2-007", "medium"}:  LowRank,
+				{"g2-007", "unknown"}: LowRank,
 			},
 		},
 	},
