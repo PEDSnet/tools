@@ -18,6 +18,7 @@ func main() {
 	mainCmd.AddCommand(generateCmd)
 	mainCmd.AddCommand(feedbackCmd)
 	mainCmd.AddCommand(rankIssuesCmd)
+	mainCmd.AddCommand(queryCmd)
 
 	mainCmd.Execute()
 }
