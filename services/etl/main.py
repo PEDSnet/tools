@@ -123,9 +123,9 @@ class ETLConventionsResource():
 
 
 pedsnet_v2 = ETLConventionsResource(
-        document_url='https://api.github.com/repos/PEDSnet/Data_Models/contents/PEDSnet/V2/docs/Pedsnet_CDM_V2_OMOPV5_ETL_Conventions.md',  # noqa
+        document_url='https://api.github.com/repos/PEDSnet/Data_Models/contents/PEDSnet/docs/Pedsnet_CDM_ETL_Conventions.md',  # noqa
         commits_url='https://api.github.com/repos/PEDSnet/Data_Models/commits',  # noqa
-        file_path='PEDSnet/V2/docs/Pedsnet_CDM_V2_OMOPV5_ETL_Conventions.md')
+        file_path='PEDSnet/docs/Pedsnet_CDM_ETL_Conventions.md')
 
 i2b2_v2 = ETLConventionsResource(
         document_url='https://api.github.com/repos/PEDSnet/Data_Models/contents/i2b2/V2/docs/i2b2_pedsnet_v2_etl_conventions.md',  # noqa
