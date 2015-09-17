@@ -62,12 +62,13 @@ var generateCmd = &cobra.Command{
 		}
 
 		var (
-			ok  bool
-			p   string
-			f   *os.File
-			w   *csv.Writer
-			res *Result
-			row []string
+			ok   bool
+			p    string
+			f    *os.File
+			w    *csv.Writer
+			res  *Result
+			resl []*Result
+			row  []string
 		)
 
 		head, err := NewResultsHeader(ResultsTemplateHeader)
@@ -76,7 +77,7 @@ var generateCmd = &cobra.Command{
 			panic(err)
 		}
 
-		var pindex map[[2]string]*Result
+		var pindex map[[2]string][]*Result
 
 		// Create a file per table.
 		for _, table := range m.Tables {
@@ -112,9 +113,15 @@ var generateCmd = &cobra.Command{
 					row[head.Field] = field.Name
 					row[head.Goal] = goal
 
-					// Copy persistent issues.
-					if pindex != nil {
-						if res, ok = pindex[[2]string{field.Name, goal}]; ok {
+					if pindex == nil {
+						w.Write(row)
+						continue
+					}
+
+					// Iterate the persistent issues for a field an copy them.
+					// Otherwise just write the row.
+					if resl, ok = pindex[[2]string{field.Name, goal}]; ok {
+						for _, res = range resl {
 							row[head.IssueCode] = res.IssueCode
 							row[head.IssueDescription] = res.IssueDescription
 							row[head.Finding] = res.Finding
@@ -124,10 +131,12 @@ var generateCmd = &cobra.Command{
 							row[head.Cause] = res.Cause
 							row[head.Status] = res.Status
 							row[head.Reviewer] = res.Reviewer
-						}
-					}
 
-					w.Write(row)
+							w.Write(row)
+						}
+					} else {
+						w.Write(row)
+					}
 				}
 			}
 
@@ -143,12 +152,16 @@ var generateCmd = &cobra.Command{
 	},
 }
 
-func indexPersistentIssues(r *Report) map[[2]string]*Result {
-	index := make(map[[2]string]*Result)
+// Index persistent issues by field and goal. Multiple issues can be present
+// so a slice is used here.
+func indexPersistentIssues(r *Report) map[[2]string][]*Result {
+	index := make(map[[2]string][]*Result)
 
 	for _, res := range r.Results {
 		if strings.ToLower(res.Status) == "persistent" {
-			index[[2]string{res.Field, res.Goal}] = res
+			results := index[[2]string{res.Field, res.Goal}]
+			results = append(results, res)
+			index[[2]string{res.Field, res.Goal}] = results
 		}
 	}
 
