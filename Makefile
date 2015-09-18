@@ -14,12 +14,12 @@ build-generators:
 	go build -o $(GOPATH)/bin/origins-generate-pedsnet-dqa \
 		./generators/dqa
 
-build-services:
-	cd ./services/dqa && go build \
+build-commands:
+	cd ./cmd/dqa && go build \
 		-ldflags "-X \"main.buildVersion='$(GIT_VERSION)'\"" \
 		-o $(GOPATH)/bin/pedsnet-dqa
 
-build: build-generators build-services
+build: build-generators build-commands
 
 install:
 	go get golang.org/x/tools/cmd/cover
