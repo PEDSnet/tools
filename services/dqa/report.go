@@ -17,7 +17,7 @@ var feedbackCmd = &cobra.Command{
 	Short: "Generates a Markdown report of issues found in DQA results.",
 
 	Example: `
-  pedsnet-dqa generate-feedback-for-site --out=chop-etlv4.md path/to/CHOP/results`,
+  pedsnet-dqa generate-feedback-for-sites --out=chop-etlv4.md SecondaryReports/CHOP/ETLv4`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) < 1 {
@@ -25,7 +25,7 @@ var feedbackCmd = &cobra.Command{
 		}
 
 		i2b2 := viper.GetBool("feedback.i2b2")
-		output := viper.GetString("feedback.output")
+		output := viper.GetString("feedback.out")
 
 		// Gather all of the files.
 		var files []string
@@ -67,8 +67,8 @@ var feedbackCmd = &cobra.Command{
 				fmt.Printf("cannot open file %s: %s\n", name, err)
 			}
 
-			if _, err = ReadResults(report, &universalReader{f}); err != nil {
-				fmt.Println(err)
+			if _, err = report.ReadResults(f); err != nil {
+				fmt.Printf("error reading results from %s: %s\n", name, err)
 			}
 
 			f.Close()
@@ -81,7 +81,7 @@ var feedbackCmd = &cobra.Command{
 			w = os.Stdout
 		} else {
 			if f, err = os.Create(output); err != nil {
-				fmt.Println(err)
+				fmt.Printf("error creating output file: %s\n", err)
 				os.Exit(1)
 			}
 
@@ -90,7 +90,7 @@ var feedbackCmd = &cobra.Command{
 			w = f
 		}
 
-		Render(w, report)
+		report.Render(w)
 	},
 }
 
