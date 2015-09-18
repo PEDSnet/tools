@@ -12,6 +12,9 @@ from cmputil import Changelog
 # Token for GitHub authorization. Set on startup.
 GITHUB_AUTH_TOKEN = None
 
+# URL template for a specific blob (ref + path)
+GITHUB_BLOB_URL = 'https://github.com/PEDSnet/Data_Models/blob/{}/{}'
+
 
 def json_defaults(o):
     if isinstance(o, provenance.entity):
@@ -32,7 +35,7 @@ def generate_all_provenance(paths, model_name):
     for path in paths:
         for commit in get_commits(path, token=GITHUB_AUTH_TOKEN):
             try:
-                model = get_content(path,
+                model = get_content(commit['file_path'],
                                     token=GITHUB_AUTH_TOKEN,
                                     ref=commit['sha'])
                 model['name'] = model_name
@@ -54,9 +57,10 @@ def generate_all_provenance(paths, model_name):
 
 
 class Resource():
-    def __init__(self, model_name, file_paths):
+    def __init__(self, model_name, file_paths, versions=None):
         self.model_name = model_name
         self.file_paths = file_paths
+        self.versions = versions or {}
 
     @property
     def current_file_path(self):
@@ -70,31 +74,35 @@ class Resource():
         for path in self.file_paths:
             commits.extend(get_commits(path, token=GITHUB_AUTH_TOKEN))
 
-        return commits
+        return dedupe_commits(commits)
 
     def _get_ref_path(self, ref):
         "Resolve the full ref and file path of the passed ref."
-        for path in self.file_paths:
-            for c in get_commits(path, token=GITHUB_AUTH_TOKEN):
-                if c['sha'].startswith(ref):
-                    return c['sha'], path
+        for c in self.get_all_commits():
+            if c['sha'].startswith(ref):
+                return c['sha'], c['file_path']
+
+        return 'master', self.current_file_path
 
     def _get_ref_path_at_time(self, ts):
         ref = None
         path = None
 
-        for p in self.file_paths:
-            for c in get_commits(p, token=GITHUB_AUTH_TOKEN):
-                if c['timestamp'] > ts:
-                    return ref, path
+        for c in self.get_all_commits():
+            if c['timestamp'] > ts:
+                return ref, path
 
-                ref = c['sha']
-                path = p
+            ref = c['sha']
+            path = c['file_path']
 
-            path = None
-            ref = None
+        return None, None
 
-        return ref, path
+    def _get_version_ref_path(self, ver):
+        "Gets the the ref path for a specific version."
+        if ver in self.versions:
+            return self._get_ref_path(self.versions[ver])
+
+        return None, None
 
     def _request_ref_path(self):
         "Get the ref and path from request args."
@@ -106,8 +114,9 @@ class Resource():
         if ref:
             return self._get_ref_path(ref)
 
+        # Version
         if version:
-            return self._get_ref_path_at_version(version)
+            return self._get_version_ref_path(version)
 
         # Time provided.
         if asof:
@@ -125,6 +134,16 @@ class Resource():
             return 'Not found', 404
 
         try:
+            commit = get_commit(path, token=GITHUB_AUTH_TOKEN, ref=ref)
+        except HTTPError as e:
+            return str(e), 503
+
+        # Redirect to source on github.
+        if request.args.get('r'):
+            url = GITHUB_BLOB_URL.format(commit['sha'], path)
+            return '', 302, {'Location': url}
+
+        try:
             model = get_content(path, token=GITHUB_AUTH_TOKEN, ref=ref)
         except HTTPError as e:
             return str(e), 503
@@ -133,11 +152,6 @@ class Resource():
             return 'Not found', 404
 
         model['name'] = self.model_name
-
-        try:
-            commit = get_commit(path, token=GITHUB_AUTH_TOKEN, ref=ref)
-        except HTTPError as e:
-            return str(e), 503
 
         content = json.dumps({
             'commit': {
@@ -152,20 +166,17 @@ class Resource():
         resp = Response(content)
 
         resp.headers['Content-Type'] = 'application/json'
-
         return resp
 
     def serve_commits(self):
         commits = []
 
-        for path in self.file_paths:
-            commits.extend([{
-                'file_path': path,
+        for c in self.get_all_commits():
+            commits.append({
+                'file_path': c['file_path'],
                 'sha': c['sha'],
                 'date': c['commit']['committer']['date'],
-            } for c in get_commits(path, token=GITHUB_AUTH_TOKEN)])
-
-        commits = dedupe_commits(commits)
+            })
 
         resp = Response(json.dumps(commits))
         resp.headers['content-type'] = 'application/json'
@@ -263,20 +274,26 @@ pedsnet = Resource(
             'PEDSnet/V1/docs/PEDSnet_CDM_V1_ETL_Conventions.md',
             'PEDSnet/V2/docs/Pedsnet_CDM_V2_OMOPV5_ETL_Conventions.md',
             'PEDSnet/docs/Pedsnet_CDM_ETL_Conventions.md',
-        ))
+        ), versions={
+            '1.0.0': 'ad18c4ea1e227bbccf3fbc0a5ae05b1f552af95d',
+            '2.0.0': '530d08afdff1542fcbc9042794a90e9e444541c7',
+            '2.1.0': 'master',
+        })
 
 i2b2 = Resource(
         model_name='i2b2',
         file_paths=(
             'i2b2/V2/docs/i2b2_pedsnet_v2_etl_conventions.md',
-        ))
+        ), versions={
+            '2.0.0': 'master',
+        })
 
 
 # Initialize the flask app and register the routes.
 app = Flask(__name__)
 
 app.add_url_rule('/pedsnet',
-                 'pedsnet',
+                 'pedsnet_document',
                  pedsnet.serve_document,
                  methods=['GET'])
 
@@ -301,7 +318,7 @@ app.add_url_rule('/pedsnet/prov/changes/all',
                  methods=['GET'])
 
 app.add_url_rule('/i2b2',
-                 'i2b2',
+                 'i2b2_document',
                  i2b2.serve_document,
                  methods=['GET'])
 
