@@ -1,19 +1,28 @@
 import os
 import sys
 import json
+import uuid
 import logging
 import provenance
+from datetime import datetime
 from requests.exceptions import HTTPError
 from flask import Flask, Response, request
 from logger import logger
 from gitutil import get_content, get_commits, get_commit, dedupe_commits
 from cmputil import Changelog
+from version import __version__
 
 # Token for GitHub authorization. Set on startup.
 GITHUB_AUTH_TOKEN = None
 
 # URL template for a specific blob (ref + path)
 GITHUB_BLOB_URL = 'https://github.com/PEDSnet/Data_Models/blob/{}/{}'
+
+# Unique service ID.
+SERVICE_ID = str(uuid.uuid4())
+
+# The time the service was invoked.
+SERVICE_TIMESTAMP = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
 
 
 def json_defaults(o):
@@ -291,6 +300,16 @@ i2b2 = Resource(
 
 # Initialize the flask app and register the routes.
 app = Flask(__name__)
+
+
+@app.route('/', methods=['GET'])
+def index():
+    return json.dumps({
+        'name': 'ETL Conventions Service',
+        'version': __version__,
+        'time': SERVICE_TIMESTAMP,
+        'uuid': SERVICE_ID,
+    })
 
 app.add_url_rule('/pedsnet',
                  'pedsnet_document',
