@@ -2,9 +2,9 @@ import os
 
 __version_info__ = {
     'major': 0,
-    'minor': 1,
-    'patch': 5,
-    'release': 'final',
+    'minor': 2,
+    'patch': 0,
+    'release': 'beta',
     'sha': os.environ.get('GIT_SHA'),
 }
 
