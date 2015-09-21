@@ -5,14 +5,7 @@
 import json
 import re
 import sys
-import logging
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-handler = logging.StreamHandler()
-handler.setLevel(logging.DEBUG)
-logger.addHandler(handler)
+from logger import logger
 
 title_re = re.compile(r'^\#[^\#]+')
 table_name_re = re.compile(r'^\#\#\s*\d+\.\d+(?P<name>[ \w]*)')
@@ -107,7 +100,7 @@ class Parser():
         return self.model
 
     def add_content(self, content):
-        logger.debug('added top-level content')
+        logger.debug('[parser] added top-level content')
 
         self.model['content'] = content
 
@@ -115,7 +108,7 @@ class Parser():
         if table in self.model['tables']:
             raise KeyError('table %s already added', table)
 
-        logger.debug('added table %s', table)
+        logger.debug('[parser] added table %s', table)
 
         self.model['tables'][table] = {
             'content': content,
@@ -123,14 +116,14 @@ class Parser():
         }
 
     def add_table_content(self, table, content):
-        logger.debug('added table %s content', table)
+        logger.debug('[parser] added table %s content', table)
         self.model['tables'][table]['content'] = content
 
     def add_field(self, table, field, required, data_type, desc, conv):
         if field in self.model['tables'][table]['fields']:
             raise KeyError('field %s already added for table %s', field, table)
 
-        logger.debug('added field %s/%s', table, field)
+        logger.debug('[parser] added field %s/%s', table, field)
 
         self.model['tables'][table]['fields'][field] = {
             'required': required,
@@ -152,7 +145,7 @@ class Parser():
         # When the first table name is found, break and queue the line.
         for line in self.fileobj:
             if table_name_re.match(line):
-                logger.debug('found table name: %s', line)
+                logger.debug('[parser] found table name: %s', line)
                 self.line = line
                 break
 
@@ -184,7 +177,7 @@ class Parser():
         for line in self.fileobj:
             for parser in table_parsers:
                 if parser.matches_header(line):
-                    logger.debug('matched header for %s', table_name)
+                    logger.debug('[parser] matched header for %s', table_name)
                     break
             else:
                 parser = None
@@ -199,7 +192,7 @@ class Parser():
         # If a line is present, a table header matched. Skip the
         # line '--- | --- | --- | --- | ---' that follows.
         if line is not None:
-            logger.debug('parsing fields for %s', table_name)
+            logger.debug('[parser] parsing fields for %s', table_name)
             next(self.fileobj)
 
             # Parse the rows in the table.

@@ -1,143 +1,346 @@
-import io
 import os
 import sys
 import json
-import requests
 import logging
+import provenance
 from requests.exceptions import HTTPError
-from flask import Flask, Response
-from parser import Parser, logger
-
-
-# Required mediatype for the Accept header to get the raw content.
-GITHUB_RAW_MEDIATYPE = 'application/vnd.github.v3.raw'
-GITHUB_DEFAULT_MEDIATYPE = 'application/vnd.github.v3'
+from flask import Flask, Response, request
+from logger import logger
+from gitutil import get_content, get_commits, get_commit, dedupe_commits
+from cmputil import Changelog
 
 # Token for GitHub authorization. Set on startup.
 GITHUB_AUTH_TOKEN = None
 
-DEFAULT_TIMEOUT = 5
+# URL template for a specific blob (ref + path)
+GITHUB_BLOB_URL = 'https://github.com/PEDSnet/Data_Models/blob/{}/{}'
 
 
-class ETLConventionsResource():
-    def __init__(self, document_url, commits_url, file_path):
-        self.document_url = document_url
-        self.commits_url = commits_url
-        self.file_path = file_path
+def json_defaults(o):
+    if isinstance(o, provenance.entity):
+        return o.json()
 
-        self.content_last_modified = None
-        self.content_etag = None
+    raise TypeError
 
-        self.commit_last_modified = None
-        self.commit_etag = None
 
-        self.cached_model = None
-        self.cached_commit = None
+def ldjson(prov):
+    for msg in prov:
+        yield json.dumps(msg.json())
+        yield '\n'
 
-    def __call__(self):
-        "Entrypoint for Flask routing."
+
+def generate_all_provenance(paths, model_name):
+    prov = []
+
+    for path in paths:
+        for commit in get_commits(path, token=GITHUB_AUTH_TOKEN):
+            try:
+                model = get_content(commit['file_path'],
+                                    token=GITHUB_AUTH_TOKEN,
+                                    ref=commit['sha'])
+                model['name'] = model_name
+            except Exception:
+                continue
+
+            # Likely a 404 because the file moved in the current commit.
+            if model is None:
+                continue
+
+            model['name'] = model_name
+
+            prov.extend(provenance.generate(file_name=path,
+                                            domain='pedsnet.etlconv',
+                                            model=model,
+                                            commit=commit))
+
+    return prov
+
+
+class Resource():
+    def __init__(self, model_name, file_paths, versions=None):
+        self.model_name = model_name
+        self.file_paths = file_paths
+        self.versions = versions or {}
+
+    @property
+    def current_file_path(self):
+        "Returns the current path of the document in the repository."
+        return self.file_paths[-1]
+
+    def get_all_commits(self):
+        "Gets all commits for all paths for this document."
+        commits = []
+
+        for path in self.file_paths:
+            commits.extend(get_commits(path, token=GITHUB_AUTH_TOKEN))
+
+        return dedupe_commits(commits)
+
+    def _get_ref_path(self, ref):
+        "Resolve the full ref and file path of the passed ref."
+        for c in self.get_all_commits():
+            if c['sha'].startswith(ref):
+                return c['sha'], c['file_path']
+
+        return 'master', self.current_file_path
+
+    def _get_ref_path_at_time(self, ts):
+        ref = None
+        path = None
+
+        for c in self.get_all_commits():
+            if c['timestamp'] > ts:
+                return ref, path
+
+            ref = c['sha']
+            path = c['file_path']
+
+        return None, None
+
+    def _get_version_ref_path(self, ver):
+        "Gets the the ref path for a specific version."
+        if ver in self.versions:
+            return self._get_ref_path(self.versions[ver])
+
+        return None, None
+
+    def _request_ref_path(self):
+        "Get the ref and path from request args."
+        ref = request.args.get('ref')
+        asof = request.args.get('asof')
+        version = request.args.get('version')
+
+        # Explicit ref provided.
+        if ref:
+            return self._get_ref_path(ref)
+
+        # Version
+        if version:
+            return self._get_version_ref_path(version)
+
+        # Time provided.
+        if asof:
+            ts = provenance.parse_date(asof)
+            return self._get_ref_path_at_time(ts)
+
+        # Default to the latest.
+        return None, self.current_file_path
+
+    def serve_document(self):
+        "HTTP handler for the document."
+        ref, path = self._request_ref_path()
+
+        if not path:
+            return 'Not found', 404
+
         try:
-            model = self.parse_model()
+            commit = get_commit(path, token=GITHUB_AUTH_TOKEN, ref=ref)
         except HTTPError as e:
             return str(e), 503
 
+        # Redirect to source on github.
+        if request.args.get('r'):
+            url = GITHUB_BLOB_URL.format(commit['sha'], path)
+            return '', 302, {'Location': url}
+
         try:
-            commit = self.parse_commit()
+            model = get_content(path, token=GITHUB_AUTH_TOKEN, ref=ref)
         except HTTPError as e:
             return str(e), 503
+
+        if not model:
+            return 'Not found', 404
+
+        model['name'] = self.model_name
 
         content = json.dumps({
-            'commit': commit,
+            'commit': {
+                'sha': commit['sha'],
+                'timestamp': commit['timestamp'],
+                'date': commit['commit']['committer']['date'],
+                'file_path': commit['file_path'],
+            },
             'model': model,
         })
 
         resp = Response(content)
 
         resp.headers['Content-Type'] = 'application/json'
+        return resp
+
+    def serve_commits(self):
+        commits = []
+
+        for c in self.get_all_commits():
+            commits.append({
+                'file_path': c['file_path'],
+                'sha': c['sha'],
+                'date': c['commit']['committer']['date'],
+            })
+
+        resp = Response(json.dumps(commits))
+        resp.headers['content-type'] = 'application/json'
 
         return resp
 
-    def parse_model(self):
-        headers = {
-            'Accept': GITHUB_RAW_MEDIATYPE,
-            'Authorization': 'token ' + GITHUB_AUTH_TOKEN,
-        }
+    def serve_provenance(self):
+        "HTTP handler for the provenance."
+        ref, path = self._request_ref_path()
 
-        if self.content_last_modified:
-            headers['If-Modified-Since'] = self.content_last_modified
+        if not path:
+            return 'not found', 404
 
-        if self.content_etag:
-            headers['If-None-Match'] = self.content_etag
+        try:
+            model = get_content(path, token=GITHUB_AUTH_TOKEN, ref=ref)
+        except HTTPError as e:
+            return str(e), 503
 
-        resp = requests.get(self.document_url,
-                            headers=headers,
-                            timeout=DEFAULT_TIMEOUT)
+        if not model:
+            return 'not found', 404
 
-        resp.raise_for_status()
+        model['name'] = self.model_name
 
-        self.content_last_modified = resp.headers['Last-Modified']
-        self.content_etag = resp.headers['ETag']
+        try:
+            commit = get_commit(path, token=GITHUB_AUTH_TOKEN, ref=ref)
+        except HTTPError as e:
+            return str(e), 503
 
-        # Not modified based on the conditional headers.
-        if resp.status_code == 200:
-            # Wrap decoded bytes in file-like object.
-            buff = io.StringIO(resp.text)
+        prov = provenance.generate(file_name=self.current_file_path,
+                                   domain='pedsnet.etlconv',
+                                   model=model,
+                                   commit=commit)
 
-            self.cached_model = Parser(buff).parse()
+        if request.accept_mimetypes.best == 'application/json; boundary=NL':
+            content = ldjson(prov)
+            content_type = 'application/json; boundary=NL'
+        else:
+            content = json.dumps(prov, default=json_defaults)
+            content_type = 'application/json'
 
-        return self.cached_model
+        resp = Response(content)
+        resp.headers['content-type'] = content_type
 
-    def parse_commit(self):
-        headers = {
-            'Accept': GITHUB_DEFAULT_MEDIATYPE,
-            'Authorization': 'token ' + GITHUB_AUTH_TOKEN,
-        }
+        return resp
 
-        if self.commit_last_modified:
-            headers['If-Modified-Since'] = self.commit_last_modified
+    def serve_full_provenance(self):
+        prov = generate_all_provenance(self.file_paths, self.model_name)
 
-        if self.commit_etag:
-            headers['If-None-Match'] = self.commit_etag
+        if request.accept_mimetypes.best == 'application/json; boundary=NL':
+            content = ldjson(prov)
+            content_type = 'application/json; boundary=NL'
+        else:
+            content = json.dumps(prov, default=json_defaults)
+            content_type = 'application/json'
 
-        resp = requests.get(self.commits_url,
-                            params={'path': self.file_path},
-                            headers=headers,
-                            timeout=DEFAULT_TIMEOUT)
+        resp = Response(content)
+        resp.headers['content-type'] = content_type
 
-        resp.raise_for_status()
+        return resp
 
-        self.commit_last_modified = resp.headers['Last-Modified']
-        self.commit_etag = resp.headers['ETag']
+    def serve_changes_all(self):
+        "HTTP handler for serving the change log."
+        prov = generate_all_provenance(self.file_paths, self.model_name)
 
-        # Not modified based on the conditional headers.
-        if resp.status_code == 200:
-            # Get the most recent commit.
-            commit = resp.json()[0]
+        cl = Changelog()
 
-            self.cached_commit = {
-                'sha': commit['sha'],
-                'date': commit['commit']['committer']['date']
-            }
+        log = []
 
-        return self.cached_commit
+        for e in prov:
+            if not {'Model', 'Table', 'Field'} & set(e.labels):
+                continue
+
+            c = cl.evaluate(e.json())
+
+            if c is not None:
+                log.append(c)
+
+        if request.accept_mimetypes.best == 'application/json; boundary=NL':
+            content = ldjson(log)
+            content_type = 'application/json; boundary=NL'
+        else:
+            content = json.dumps(log, default=json_defaults)
+            content_type = 'application/json'
+
+        resp = Response(content)
+        resp.headers['content-type'] = content_type
+
+        return resp
 
 
-pedsnet_v2 = ETLConventionsResource(
-        document_url='https://api.github.com/repos/PEDSnet/Data_Models/contents/PEDSnet/docs/Pedsnet_CDM_ETL_Conventions.md',  # noqa
-        commits_url='https://api.github.com/repos/PEDSnet/Data_Models/commits',  # noqa
-        file_path='PEDSnet/docs/Pedsnet_CDM_ETL_Conventions.md')
+pedsnet = Resource(
+        model_name='pedsnet',
+        file_paths=(
+            'PEDSnet/docs/PEDSnet_CDM_V1_ETL_Conventions.md',
+            'PEDSnet/V1/docs/PEDSnet_CDM_V1_ETL_Conventions.md',
+            'PEDSnet/V2/docs/Pedsnet_CDM_V2_OMOPV5_ETL_Conventions.md',
+            'PEDSnet/docs/Pedsnet_CDM_ETL_Conventions.md',
+        ), versions={
+            '1.0.0': 'ad18c4ea1e227bbccf3fbc0a5ae05b1f552af95d',
+            '2.0.0': '530d08afdff1542fcbc9042794a90e9e444541c7',
+            '2.1.0': 'master',
+        })
 
-i2b2_v2 = ETLConventionsResource(
-        document_url='https://api.github.com/repos/PEDSnet/Data_Models/contents/i2b2/V2/docs/i2b2_pedsnet_v2_etl_conventions.md',  # noqa
-        commits_url='https://api.github.com/repos/PEDSnet/Data_Models/commits',  # noqa
-        file_path='i2b2/V2/docs/i2b2_pedsnet_v2_etl_conventions.md')
+i2b2 = Resource(
+        model_name='i2b2',
+        file_paths=(
+            'i2b2/V2/docs/i2b2_pedsnet_v2_etl_conventions.md',
+        ), versions={
+            '2.0.0': 'master',
+        })
 
 
 # Initialize the flask app and register the routes.
 app = Flask(__name__)
 
-app.add_url_rule('/pedsnet/2.0.0', 'pedsnet_v2', pedsnet_v2, methods=['GET'])
-app.add_url_rule('/i2b2/2.0.0', 'i2b2_v2', i2b2_v2, methods=['GET'])
+app.add_url_rule('/pedsnet',
+                 'pedsnet_document',
+                 pedsnet.serve_document,
+                 methods=['GET'])
+
+app.add_url_rule('/pedsnet/commits',
+                 'pedsnet_commits',
+                 pedsnet.serve_commits,
+                 methods=['GET'])
+
+app.add_url_rule('/pedsnet/prov',
+                 'pedsnet_prov',
+                 pedsnet.serve_provenance,
+                 methods=['GET'])
+
+app.add_url_rule('/pedsnet/prov/all',
+                 'pedsnet_prov_all',
+                 pedsnet.serve_full_provenance,
+                 methods=['GET'])
+
+app.add_url_rule('/pedsnet/prov/changes/all',
+                 'pedsnet_changes_all',
+                 pedsnet.serve_changes_all,
+                 methods=['GET'])
+
+app.add_url_rule('/i2b2',
+                 'i2b2_document',
+                 i2b2.serve_document,
+                 methods=['GET'])
+
+app.add_url_rule('/i2b2/commits',
+                 'i2b2_commits',
+                 i2b2.serve_commits,
+                 methods=['GET'])
+
+app.add_url_rule('/i2b2/prov',
+                 'i2b2_prov',
+                 i2b2.serve_provenance,
+                 methods=['GET'])
+
+app.add_url_rule('/i2b2/prov/all',
+                 'i2b2_prov_all',
+                 i2b2.serve_full_provenance,
+                 methods=['GET'])
+
+app.add_url_rule('/i2b2/prov/changes/all',
+                 'i2b2_changes_all',
+                 i2b2.serve_changes_all,
+                 methods=['GET'])
 
 
 if __name__ == '__main__':
@@ -174,4 +377,4 @@ if __name__ == '__main__':
     if debug:
         logger.setLevel(logging.DEBUG)
 
-    app.run(host=host, port=port, debug=debug)
+    app.run(host=host, port=port, threaded=True, debug=debug)
