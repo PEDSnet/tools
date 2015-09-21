@@ -13,7 +13,7 @@ GITHUB_RAW_MEDIATYPE = 'application/vnd.github.v3.raw'
 GITHUB_REQUEST_MEDIATYPE = 'application/vnd.github.v3'
 
 # Timeout for the request.
-REQUEST_TIMEOUT = 5
+REQUEST_TIMEOUT = 20
 
 # The commits endpoint is used to get the commits for a particular file.
 GITHUB_COMMITS_URL = 'https://api.github.com/repos/PEDSnet/Data_Models/commits'
