@@ -142,6 +142,7 @@ var AdminRules = &RuleSet{
 			},
 			Map: map[[2]string]Rank{
 				{"g2-011", "full"}:   MediumRank,
+				{"g2-011", "high"}:   MediumRank,
 				{"g2-011", "medium"}: LowRank,
 				{"g4-002", "full"}:   MediumRank,
 				{"g4-002", "high"}:   MediumRank,
@@ -260,6 +261,7 @@ var DemographicRules = &RuleSet{
 			Map: map[[2]string]Rank{
 				{"g2-009", "low"}: MediumRank,
 				{"g2-010", "low"}: MediumRank,
+				{"g2-013", "low"}: MediumRank,
 			},
 		},
 	},
