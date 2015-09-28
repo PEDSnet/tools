@@ -16,7 +16,7 @@ build-generators:
 
 build-commands:
 	cd ./cmd/dqa && go build \
-		-ldflags "-X \"main.buildVersion='$(GIT_VERSION)'\"" \
+		-ldflags "-X \"main.buildVersion=$(GIT_VERSION)\"" \
 		-o $(GOPATH)/bin/pedsnet-dqa
 
 build: build-generators build-commands
