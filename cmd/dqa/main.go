@@ -1,6 +1,11 @@
 package main
 
-import "github.com/spf13/cobra"
+import (
+	"fmt"
+	"os"
+
+	"github.com/spf13/cobra"
+)
 
 var buildVersion string
 
@@ -14,7 +19,18 @@ var mainCmd = &cobra.Command{
 	},
 }
 
+var versionCmd = &cobra.Command{
+	Use: "version",
+
+	Short: "Prints the version of the program.",
+
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Fprintf(os.Stdout, "%s\n", buildVersion)
+	},
+}
+
 func main() {
+	mainCmd.AddCommand(versionCmd)
 	mainCmd.AddCommand(generateCmd)
 	mainCmd.AddCommand(feedbackCmd)
 	mainCmd.AddCommand(rankIssuesCmd)
