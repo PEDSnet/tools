@@ -123,6 +123,10 @@ func ReadResultsFromDir(dir string, skip bool) (map[string]*Report, error) {
 			continue
 		}
 
+		if filepath.Ext(fi.Name()) != ".csv" {
+			continue
+		}
+
 		path = filepath.Join(dir, fi.Name())
 
 		if f, err = os.Open(path); err != nil {
