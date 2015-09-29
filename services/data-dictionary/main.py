@@ -1,14 +1,16 @@
 import io
-import json
-import logging
 import os
-import requests
 import sys
-
+import json
+import uuid
+import logging
+import requests
+from datetime import datetime
 from requests.exceptions import HTTPError
 from flask import Flask, Response
 from flask.ext.cors import CORS
 from parser import Parser, logger
+from version import __version__
 
 
 # Required mediatype for the Accept header to get the raw content.
@@ -134,7 +136,25 @@ pcornet_v3 = DataDictionaryResource(
 app = Flask(__name__)
 CORS(app)
 
-app.add_url_rule('/pcornet/3.0.0', 'pcornet_v3', pcornet_v3, methods=['GET'])
+
+# Unique service ID and timestamp when it started.
+SERVICE_ID = str(uuid.uuid4())
+SERVICE_TIMESTAMP = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+
+
+@app.route('/', methods=['GET'])
+def index():
+    return json.dumps({
+        'name': 'PCORnet Annotated Data Dictionary Service',
+        'version': __version__,
+        'time': SERVICE_TIMESTAMP,
+        'uuid': SERVICE_ID,
+    })
+
+app.add_url_rule('/pcornet/3.0.0',
+                 'pcornet_v3',
+                 pcornet_v3,
+                 methods=['GET'])
 
 if __name__ == '__main__':
     usage = """PCORnet Annotated Data Dictionary Service
