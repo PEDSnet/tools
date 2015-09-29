@@ -148,7 +148,10 @@ var generateCmd = &cobra.Command{
 		}
 
 		fmt.Printf("Wrote files to '%s' for model '%s/%s'\n", dir, m.Name, m.Version)
-		fmt.Printf("Copied persistent issues from '%s'\n", cpp)
+
+		if cpp != "" {
+			fmt.Printf("Copied persistent issues from '%s'\n", cpp)
+		}
 	},
 }
 
