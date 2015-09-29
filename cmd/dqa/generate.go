@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	dms "github.com/chop-dbhi/data-models-service/client"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -55,10 +56,20 @@ var generateCmd = &cobra.Command{
 			log.Fatal("mkdir:", err)
 		}
 
-		m, err := FetchModel(url, dqa.Model, dqa.ModelVersion)
+		client, err := dms.New(url)
 
 		if err != nil {
-			log.Fatal("fetch:", err)
+			log.Fatalf("bad service URL: %s", err)
+		}
+
+		if err = client.Ping(); err != nil {
+			log.Fatalf("error communicating with the service: %s", err)
+		}
+
+		m, err := client.ModelRevision(dqa.Model, dqa.ModelVersion)
+
+		if err != nil {
+			log.Fatalf("error fetching model: %s", err)
 		}
 
 		var (
@@ -80,7 +91,7 @@ var generateCmd = &cobra.Command{
 		var pindex map[[2]string][]*Result
 
 		// Create a file per table.
-		for _, table := range m.Tables {
+		for _, table := range m.Tables.List() {
 			if _, ok := ExcludedTables[table.Name]; ok {
 				continue
 			}
@@ -101,7 +112,7 @@ var generateCmd = &cobra.Command{
 			w = csv.NewWriter(f)
 			w.Write(ResultsTemplateHeader)
 
-			for _, field := range table.Fields {
+			for _, field := range table.Fields.List() {
 				for _, goal := range Goals {
 					row = make([]string, len(ResultsTemplateHeader))
 

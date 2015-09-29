@@ -165,24 +165,6 @@ func NewResultsTemplate(m, v, s, e string) *ResultsTemplate {
 	}
 }
 
-type Model struct {
-	Name    string
-	Version string
-	Tables  []*Table
-}
-
-type Table struct {
-	Name    string
-	Model   string
-	Version string
-	Fields  []*Field
-}
-
-type Field struct {
-	Name  string
-	Table string
-}
-
 // Result targets a specific goal an is tied to a Field.
 type Result struct {
 	Model            string
