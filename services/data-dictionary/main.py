@@ -7,6 +7,7 @@ import sys
 
 from requests.exceptions import HTTPError
 from flask import Flask, Response
+from flask.ext.cors import CORS
 from parser import Parser, logger
 
 
@@ -131,6 +132,7 @@ pcornet_v3 = DataDictionaryResource(
 
 # Initialize the flask app and register the routes.
 app = Flask(__name__)
+CORS(app)
 
 app.add_url_rule('/pcornet/3.0.0', 'pcornet_v3', pcornet_v3, methods=['GET'])
 

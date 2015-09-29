@@ -7,6 +7,7 @@ import provenance
 from datetime import datetime
 from requests.exceptions import HTTPError
 from flask import Flask, Response, request
+from flask.ext.cors import CORS
 from logger import logger
 from gitutil import get_content, get_commits, get_commit, dedupe_commits
 from cmputil import Changelog
@@ -300,6 +301,7 @@ i2b2 = Resource(
 
 # Initialize the flask app and register the routes.
 app = Flask(__name__)
+CORS(app)
 
 
 @app.route('/', methods=['GET'])
