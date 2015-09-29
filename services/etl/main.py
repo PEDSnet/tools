@@ -19,12 +19,6 @@ GITHUB_AUTH_TOKEN = None
 # URL template for a specific blob (ref + path)
 GITHUB_BLOB_URL = 'https://github.com/PEDSnet/Data_Models/blob/{}/{}'
 
-# Unique service ID.
-SERVICE_ID = str(uuid.uuid4())
-
-# The time the service was invoked.
-SERVICE_TIMESTAMP = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
-
 
 def json_defaults(o):
     if isinstance(o, provenance.entity):
@@ -302,6 +296,10 @@ i2b2 = Resource(
 # Initialize the flask app and register the routes.
 app = Flask(__name__)
 CORS(app)
+
+# Unique service ID and timestamp when it started.
+SERVICE_ID = str(uuid.uuid4())
+SERVICE_TIMESTAMP = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
 
 
 @app.route('/', methods=['GET'])
