@@ -15,17 +15,32 @@ build-generators:
 		./generators/dqa
 
 build-commands:
-	cd ./cmd/dqa && go build \
-		-ldflags "-X \"main.buildVersion=$(GIT_VERSION)\"" \
-		-o $(GOPATH)/bin/pedsnet-dqa
+	mkdir -p bin
 
-build: build-generators build-commands
+	go build -ldflags "-X \"main.buildVersion=$(GIT_VERSION)\"" \
+		-o ./bin/pedsnet-dqa \
+		./cmd/dqa
+
+	go build -ldflags "-X \"main.buildVersion=$(GIT_VERSION)\"" \
+		-o ./bin/pedsnet-etlprov \
+		./cmd/etlprov
+
+build-commands-dist:
+	mkdir -p dist
+
+	gox -ldflags "-X \"main.buildVersion=$(GIT_VERSION)\"" \
+		-os "linux windows darwin" \
+		-arch "amd64" \
+		-output="./dist/pedsnet-etlprov-{{.OS}}-{{.Arch}}" \
+		./cmd/etlprov
 
 install:
 	go get golang.org/x/tools/cmd/cover
 	go get github.com/cespare/prettybench
 	go get github.com/spf13/viper
 	go get github.com/spf13/cobra
+	go get github.com/mitchellh/gox
+	go get github.com/chop-dbhi/data-models-service/client
 
 test:
 	go test -cover ./...
