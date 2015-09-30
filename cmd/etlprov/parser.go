@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/csv"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -176,40 +175,62 @@ func (p *ToolParser) Parse(record []string) (interface{}, error) {
 	return &t, nil
 }
 
+// Regex for a step range.
 var stepRange = regexp.MustCompile(`(\d+)\s*-\s*(\d+)`)
 
+// Parses a step value which could be a single step, list of steps or a range.
 func (sp *StepParser) parseSteps(v string) ([]int, error) {
 	steps := make([]int, 0)
 
 	toks := strings.Split(v, TokenDelim)
-	trimSpace(toks)
 
 	for _, t := range toks {
+		t = strings.TrimSpace(t)
+
 		if match := stepRange.FindStringSubmatch(t); match != nil {
 			// Ignore errors since regexp matched on them
-			l, _ := strconv.Atoi(match[0])
-			u, _ := strconv.Atoi(match[1])
+			l, _ := strconv.Atoi(match[1])
+			u, _ := strconv.Atoi(match[2])
 
 			if u < l {
-				return nil, errors.New(fmt.Sprintf("invalid step range %s", t))
+				return nil, fmt.Errorf("Invalid step range %s", t)
 			}
 
-			for ; u <= l; u++ {
-				if indexOfInt(sp.steps, u) == -1 {
-					return nil, errors.New(fmt.Sprintf("step %s not defined", u))
-				}
+			// Ensure the upper and lower bound explicitly match in the
+			// available steps.
+			var lm, um bool
 
-				steps = append(steps, u)
+			// Get all steps within the range, inclusive.
+			for _, s := range sp.steps {
+				if s >= l && s <= u {
+					if s == l {
+						lm = true
+					}
+
+					if s == u {
+						um = true
+					}
+
+					steps = append(steps, s)
+				}
+			}
+
+			if !lm {
+				return nil, fmt.Errorf("Low step in range not defined %d", l)
+			}
+
+			if !um {
+				return nil, fmt.Errorf("High step in range not defined %d", u)
 			}
 		} else if t != "" {
 			i, err := strconv.Atoi(t)
 
 			if err != nil {
-				return nil, errors.New(fmt.Sprintf("invalid step number %s", t))
+				return nil, fmt.Errorf("Invalid step number %s", t)
 			}
 
 			if indexOfInt(sp.steps, i) == -1 {
-				return nil, errors.New(fmt.Sprintf("step %s not defined", i))
+				return nil, fmt.Errorf("Step %d not defined", i)
 			}
 
 			steps = append(steps, i)
@@ -262,10 +283,8 @@ func (p *StepParser) Parse(record []string) (interface{}, error) {
 	if record[3] == "" {
 		prev = -1
 	} else {
-		prev, err = strconv.Atoi(record[3])
-
-		if err != nil {
-			return nil, err
+		if prev, err = strconv.Atoi(record[3]); err != nil {
+			prev = -1
 		}
 	}
 
