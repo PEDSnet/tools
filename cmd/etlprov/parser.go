@@ -92,6 +92,10 @@ type Parser interface {
 	Parse([]string) (interface{}, error)
 }
 
+type Validator interface {
+	Validate() []error
+}
+
 func parseFile(dir, name string, parser Parser) ([]interface{}, error) {
 	f, err := os.Open(filepath.Join(dir, name))
 
@@ -137,6 +141,10 @@ func parseFile(dir, name string, parser Parser) ([]interface{}, error) {
 		} else if value != nil {
 			values = append(values, value)
 		}
+	}
+
+	if x, ok := parser.(Validator); ok {
+		errs = append(errs, x.Validate()...)
 	}
 
 	if len(errs) > 0 {
@@ -296,26 +304,6 @@ func (p *StepParser) Parse(record []string) (interface{}, error) {
 	return &s, nil
 }
 
-func parseEntities(ep *EntityParser, s string) ([]string, error) {
-	names := trimSpace(strings.Split(s, TokenDelim))
-
-	for i, n := range names {
-		if n == "all" || n == "" {
-			return flatten(ep.model), nil
-		}
-
-		n, err := ep.ValidateName(n)
-
-		if err != nil {
-			return nil, err
-		}
-
-		names[i] = n
-	}
-
-	return names, nil
-}
-
 type SourceParser struct {
 	stepParser *StepParser
 }
@@ -372,6 +360,7 @@ func (p *PersonParser) Parse(record []string) (interface{}, error) {
 
 type EntityParser struct {
 	model *dms.Model
+	seen  map[string]struct{}
 }
 
 func (p *EntityParser) Parse(record []string) (interface{}, error) {
@@ -412,27 +401,76 @@ func (p *EntityParser) Parse(record []string) (interface{}, error) {
 	return &e, nil
 }
 
+func (p *EntityParser) Validate() []error {
+	var (
+		ok   bool
+		name string
+		errs []error
+	)
+
+	for _, t := range p.model.Tables.List() {
+		for _, f := range t.Fields.List() {
+			name = fmt.Sprintf("%s%s%s", t.Name, EntityDelim, f.Name)
+
+			if _, ok = p.seen[name]; !ok && f.Required {
+				errs = append(errs, fmt.Errorf("Missing field '%s'", name))
+			}
+		}
+	}
+
+	return errs
+}
+
 func (p *EntityParser) ValidateName(name string) (string, error) {
-	// Tokens are expected to be period-delimited
+	if p.seen == nil {
+		p.seen = make(map[string]struct{})
+	}
+
 	toks := strings.SplitN(strings.ToLower(name), EntityDelim, 2)
 
 	table := p.model.Tables.Get(toks[0])
 
 	if table == nil {
-		return "", fmt.Errorf("Unknown table `%s`", toks[0])
+		if len(toks) > 1 {
+			return "", fmt.Errorf("Unknown table '%s' for field '%s'", toks[0], toks[1])
+		}
+		return "", fmt.Errorf("Unknown table '%s'", toks[0])
 	}
 
 	if len(toks) == 1 {
+		p.seen[name] = struct{}{}
 		return name, nil
 	}
 
 	field := table.Fields.Get(toks[1])
 
 	if field == nil {
-		return "", fmt.Errorf("Unknown field `%s`", name)
+		return "", fmt.Errorf("Unknown field '%s'", name)
 	}
 
+	p.seen[name] = struct{}{}
+
 	return name, nil
+}
+
+func parseEntities(ep *EntityParser, s string) ([]string, error) {
+	names := trimSpace(strings.Split(strings.ToLower(s), TokenDelim))
+
+	for i, n := range names {
+		if n == "all" || n == "" {
+			return flatten(ep.model), nil
+		}
+
+		n, err := ep.ValidateName(n)
+
+		if err != nil {
+			return nil, err
+		}
+
+		names[i] = n
+	}
+
+	return names, nil
 }
 
 func parseAvailability(v string) (string, error) {
