@@ -4,29 +4,40 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sort"
+	"strings"
 
 	dms "github.com/chop-dbhi/data-models-service/client"
 )
 
-const (
-	entitiesFile = "entities.csv"
-	stepsFile    = "steps.csv"
-	peopleFile   = "people.csv"
-	toolsFile    = "tools.csv"
-	sourcesFile  = "sources.csv"
-)
+var pedsnetIgnores = []string{
+	"concept",
+	"concept_ancestor",
+	"concept_class",
+	"concept_relationship",
+	"concept_synonym",
+	"domain",
+	"drug_strength",
+	"relationship",
+	"source_to_concept_map",
+	"vocabulary",
+}
 
 func main() {
 	var (
-		dir     string
-		model   string
-		version string
-		service string
+		dir      string
+		model    string
+		version  string
+		service  string
+		ignore   string
+		truncate bool
 	)
 
 	flag.StringVar(&model, "model", "pedsnet", "Name of the data model to validate against.")
 	flag.StringVar(&version, "version", "2.0.0", "Version of the data model to validate against.")
 	flag.StringVar(&service, "service", "http://data-models.origins.link", "URL to the data models service.")
+	flag.StringVar(&ignore, "ignore", "", "Comma-separated list of entities to ignore.")
+	flag.BoolVar(&truncate, "truncate", true, "Truncate the list of errors.")
 
 	flag.Parse()
 
@@ -38,7 +49,7 @@ func main() {
 		dir = args[0]
 	}
 
-	// Ensure the directory exists.
+	// Ensure the directory exists. This is performed here to save a remote call.
 	stat, err := os.Stat(dir)
 
 	if err != nil {
@@ -47,7 +58,7 @@ func main() {
 	}
 
 	if !stat.IsDir() {
-		fmt.Fprintf(os.Stderr, "%s not a directory\n", stat.Name())
+		fmt.Fprintf(os.Stderr, "'%s' not a directory\n", stat.Name())
 		os.Exit(1)
 	}
 
@@ -59,81 +70,96 @@ func main() {
 	}
 
 	if err = client.Ping(); err != nil {
-		fmt.Fprintf(os.Stderr, "error communicating with service: %s\n", err)
+		fmt.Fprintf(os.Stderr, "Error communicating with service\n> %s\n", err)
 		os.Exit(1)
 	}
 
 	dm, err := client.ModelRevision(model, version)
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "problem fetching model data: %s\n", err)
+		fmt.Fprintf(os.Stderr, "Problem fetching model data\n> %s\n", err)
 		os.Exit(1)
 	}
 
 	fmt.Printf("Validating against model '%s/%s'\n", model, version)
+	fmt.Printf("Scanning files in '%s'\n", dir)
 
-	// Start in a valid state.
-	valid := true
+	p := NewParser(dm)
 
-	// Everything driven by the entities.
-	entityParser := &EntityParser{
-		model: dm,
+	var limit int
+
+	if truncate {
+		limit = 10
 	}
 
-	entities, err := parseFile(dir, entitiesFile, entityParser)
-
-	if err != nil {
-		valid = false
+	errPrinter := ErrorPrinter{
+		Limit:  limit,
+		Writer: os.Stderr,
 	}
 
-	// Steps file depends on the entityParser
-	stepParser := &StepParser{
-		entityParser: entityParser,
-	}
-
-	steps, err := parseFile(dir, stepsFile, stepParser)
-
-	if err != nil {
-		valid = false
-	}
-
-	toolParser := &ToolParser{
-		stepParser: stepParser,
-	}
-
-	tools, err := parseFile(dir, toolsFile, toolParser)
-
-	if err != nil {
-		valid = false
-	}
-
-	sourceParser := &SourceParser{
-		stepParser: stepParser,
-	}
-
-	sources, err := parseFile(dir, sourcesFile, sourceParser)
-
-	if err != nil {
-		valid = false
-	}
-
-	personParser := &PersonParser{
-		stepParser: stepParser,
-	}
-
-	people, err := parseFile(dir, peopleFile, personParser)
-
-	if err != nil {
-		valid = false
-	}
-
-	fmt.Printf("Found %d entities\n", len(entities))
-	fmt.Printf("Found %d steps\n", len(steps))
-	fmt.Printf("Found %d tools\n", len(tools))
-	fmt.Printf("Found %d sources\n", len(sources))
-	fmt.Printf("Found %d persons\n", len(people))
-
-	if !valid {
+	if err = p.ReadDir(dir, errPrinter.Handle); err != nil {
+		fmt.Fprintf(os.Stderr, "Problem parsing files in directory '%s'\n> %s\n", dir, err)
 		os.Exit(1)
 	}
+
+	// Determine missing entities.
+	var ignores []string
+
+	if ignore != "" {
+		ignores = strings.Split(ignore, ",")
+	} else {
+		// Special case defaults.
+		if dm.Name == "pedsnet" {
+			ignores = pedsnetIgnores
+		}
+	}
+
+	names := p.MissingEntities(true, ignores)
+
+	if len(names) > 0 {
+		fmt.Println("---")
+
+		if len(names) == 1 {
+			fmt.Fprintln(os.Stderr, "1 entity is missing from the model")
+		} else {
+			fmt.Fprintf(os.Stderr, "%d entities are missing from the model\n", len(names))
+		}
+
+		sort.Strings(names)
+		errs := make([]error, len(names))
+
+		for i, n := range names {
+			errs[i] = fmt.Errorf(n)
+		}
+
+		printErrors(os.Stderr, errs, 10)
+	}
+
+	entities := p.EntitiesWithoutSteps()
+
+	if len(entities) > 0 {
+		fmt.Println("---")
+
+		if len(entities) == 1 {
+			fmt.Fprintln(os.Stderr, "1 entity does not have steps")
+		} else {
+			fmt.Fprintf(os.Stderr, "%d entities do not have steps\n", len(entities))
+		}
+
+		errs := make([]error, len(entities))
+
+		for i, e := range entities {
+			errs[i] = fmt.Errorf(e.Name)
+		}
+
+		printErrors(os.Stderr, errs, 10)
+	}
+
+	fmt.Println("---")
+
+	fmt.Printf("%d entities\n", len(p.Entities()))
+	fmt.Printf("%d steps\n", len(p.Steps()))
+	fmt.Printf("%d tools\n", len(p.Tools()))
+	fmt.Printf("%d sources\n", len(p.Sources()))
+	fmt.Printf("%d persons\n", len(p.People()))
 }

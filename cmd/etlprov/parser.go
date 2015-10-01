@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/csv"
 	"fmt"
 	"io"
 	"os"
@@ -16,179 +15,77 @@ import (
 const (
 	TokenDelim  = ","
 	EntityDelim = "."
+
+	EntitiesFile = "entities.csv"
+	StepsFile    = "steps.csv"
+	PeopleFile   = "people.csv"
+	ToolsFile    = "tools.csv"
+	SourcesFile  = "sources.csv"
 )
 
-// trimSpace trims the whitespace from each string in the passed slice.
-func trimSpace(slice []string) []string {
-	for i, v := range slice {
-		slice[i] = strings.TrimSpace(v)
+// Regex for a step range, taking the form "N-M".
+var stepRange = regexp.MustCompile(`(\d+)\s*-\s*(\d+)`)
+
+// Parses the availability string ensuring it is valid.
+func parseAvailability(v string) (string, error) {
+	x := strings.ToLower(v)
+
+	switch x {
+	case "available", "unavailable", "unknown":
+		return x, nil
 	}
 
-	return slice
+	return "", fmt.Errorf("Invalid choice for availability: %s", v)
 }
 
-func indexOfInt(slice []int, v int) int {
-	for i, s := range slice {
-		if v == s {
-			return i
-		}
+// Parses the transmitting boolean ensuring it is valid.
+func parseTransmitting(v string) (bool, error) {
+	x := strings.ToLower(v)
+
+	switch x {
+	case "", "yes", "1", "true":
+		return true, nil
+	case "no", "0", "false":
+		return false, nil
 	}
 
-	return -1
+	return false, fmt.Errorf("Invalid choice for transmitting: %s", v)
 }
 
-// Errors is a slice of errors to be aggregated and reported during validation.
-type Errors []error
+type Parser struct {
+	Model *dms.Model
 
-func (es Errors) Error() string {
-	strs := make([]string, len(es))
+	entities map[string]*Entity
+	steps    map[int]*Step
+	tools    map[string]*Tool
+	people   map[string]*Person
+	sources  map[string]*Source
+}
 
-	for i, e := range es {
-		strs[i] = fmt.Sprintf("* %s", e)
+func (p *Parser) parseTool(record []string) (*Tool, error) {
+	if record[0] == "" {
+		return nil, fmt.Errorf("Tool name required")
 	}
 
-	return strings.Join(strs, "\n")
-}
-
-// flatten outputs a set of strings identifiers for the entities.
-func flatten(m *dms.Model) []string {
-	names := make([]string, 0)
-
-	for _, t := range m.Tables.List() {
-		for _, f := range t.Fields.List() {
-			names = append(names, fmt.Sprintf("%s%s%s", t.Name, EntityDelim, f.Name))
-		}
-	}
-
-	return names
-}
-
-type crCleaner struct {
-	r io.Reader
-}
-
-func (c *crCleaner) Read(buf []byte) (int, error) {
-	n, err := c.r.Read(buf)
-
-	// Replace carriage returns with newlines
-	for i, b := range buf {
-		if b == '\r' {
-			buf[i] = '\n'
-		}
-	}
-
-	return n, err
-}
-
-// ReplaceCRs wraps an io.Reader and replaces carriage returns with newlines.
-func ReplaceCRs(r io.Reader) *crCleaner {
-	return &crCleaner{
-		r: r,
-	}
-}
-
-// Parser is an interface for parsing data a record of data.
-type Parser interface {
-	Parse([]string) (interface{}, error)
-}
-
-type Validator interface {
-	Validate() []error
-}
-
-func parseFile(dir, name string, parser Parser) ([]interface{}, error) {
-	f, err := os.Open(filepath.Join(dir, name))
-
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
-	defer f.Close()
-
-	cr := csv.NewReader(ReplaceCRs(f))
-
-	cr.Comment = '#'
-	cr.LazyQuotes = true
-	cr.FieldsPerRecord = -1
-	cr.TrimLeadingSpace = true
-
-	var (
-		record []string
-		values []interface{}
-		errs   Errors
-	)
-
-	for {
-		record, err = cr.Read()
-
-		if err == io.EOF {
-			break
-		}
-
-		// In-place
-		trimSpace(record)
-
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-
-		value, err := parser.Parse(record)
-
-		if err != nil {
-			errs = append(errs, err)
-		} else if value != nil {
-			values = append(values, value)
-		}
-	}
-
-	if x, ok := parser.(Validator); ok {
-		errs = append(errs, x.Validate()...)
-	}
-
-	if len(errs) > 0 {
-		fmt.Fprintf(os.Stderr, "A few problems have been detected with the %s file:\n%s\n", name, errs)
-		return values, errs
-	}
-
-	fmt.Fprintf(os.Stderr, "File %s looks good!\n", name)
-	return values, nil
-}
-
-type ToolParser struct {
-	stepParser *StepParser
-}
-
-func (p *ToolParser) Parse(record []string) (interface{}, error) {
-	// Skip header
-	if record[0] == "name" {
-		return nil, nil
-	}
-
-	t := Tool{}
-
-	t.Name = record[0]
-
-	steps, err := p.stepParser.parseSteps(record[1])
+	steps, err := p.parseStepString(record[1])
 
 	if err != nil {
 		return nil, err
 	}
 
-	t.Steps = steps
-	t.Usage = record[2]
-	t.Version = record[3]
+	t := &Tool{
+		Name:    record[0],
+		Steps:   steps,
+		Usage:   record[2],
+		Version: record[3],
+	}
 
-	return &t, nil
+	return t, nil
 }
 
-// Regex for a step range.
-var stepRange = regexp.MustCompile(`(\d+)\s*-\s*(\d+)`)
-
 // Parses a step value which could be a single step, list of steps or a range.
-func (sp *StepParser) parseSteps(v string) ([]int, error) {
-	steps := make([]int, 0)
+func (p *Parser) parseStepString(v string) ([]*Step, error) {
+	var steps []*Step
 
 	toks := strings.Split(v, TokenDelim)
 
@@ -209,13 +106,13 @@ func (sp *StepParser) parseSteps(v string) ([]int, error) {
 			var lm, um bool
 
 			// Get all steps within the range, inclusive.
-			for _, s := range sp.steps {
-				if s >= l && s <= u {
-					if s == l {
+			for id, s := range p.steps {
+				if id >= l && id <= u {
+					if id == l {
 						lm = true
 					}
 
-					if s == u {
+					if id == u {
 						um = true
 					}
 
@@ -237,141 +134,116 @@ func (sp *StepParser) parseSteps(v string) ([]int, error) {
 				return nil, fmt.Errorf("Invalid step number %s", t)
 			}
 
-			if indexOfInt(sp.steps, i) == -1 {
+			s, ok := p.steps[i]
+
+			if !ok {
 				return nil, fmt.Errorf("Step %d not defined", i)
 			}
 
-			steps = append(steps, i)
+			steps = append(steps, s)
 		}
 	}
 
 	return steps, nil
 }
 
-type StepParser struct {
-	entityParser *EntityParser
-	steps        []int
-}
-
-func (p *StepParser) Parse(record []string) (interface{}, error) {
-	// Skip header
-	if record[0] == "step" {
-		return nil, nil
-	}
-
-	s := Step{}
-
+func (p *Parser) parseStep(record []string) (*Step, error) {
 	var (
-		id   int
-		prev int
-		err  error
+		id, pid int
+		ok      bool
+		prev    *Step
+		err     error
 	)
 
 	if record[0] == "" {
-		id = -1
-	} else {
-		id, err = strconv.Atoi(record[0])
+		return nil, fmt.Errorf("Step ID required")
+	}
 
-		if err != nil {
-			return nil, err
+	// Try to convert into a number.
+	id, err = strconv.Atoi(record[0])
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse the entities the step applies to.
+	entities, err := p.parseEntityString(record[2])
+
+	if err != nil {
+		return nil, err
+	}
+
+	s := &Step{
+		ID:          id,
+		Time:        record[4],
+		Entities:    entities,
+		Description: record[1],
+	}
+
+	// Special case of returning the step wit the error to
+	// prevent cascading errors.
+	if record[3] != "" {
+		// Parse the previous step if specified.
+		if pid, err = strconv.Atoi(record[3]); err != nil {
+			err = fmt.Errorf("Error parsing previous step '%s'", record[3])
+		} else if prev, ok = p.steps[pid]; !ok {
+			err = fmt.Errorf("Step %d does not exist", pid)
 		}
+
+		s.PreviousStep = prev
 	}
 
-	s.ID = id
-	s.Description = record[1]
+	return s, err
+}
 
-	entities, err := parseEntities(p.entityParser, record[2])
+// parseSource parses a source record.
+func (p *Parser) parseSource(record []string) (*Source, error) {
+	if record[0] == "" {
+		return nil, fmt.Errorf("Source name required")
+	}
+
+	steps, err := p.parseStepString(record[1])
 
 	if err != nil {
 		return nil, err
 	}
 
-	s.Entities = entities
-
-	if record[3] == "" {
-		prev = -1
-	} else {
-		if prev, err = strconv.Atoi(record[3]); err != nil {
-			prev = -1
-		}
+	s := &Source{
+		Name:    record[0],
+		Steps:   steps,
+		Usage:   record[2],
+		Version: record[3],
 	}
 
-	s.PreviousStep = prev
-	s.Time = record[4]
-
-	p.steps = append(p.steps, s.ID)
-
-	return &s, nil
+	return s, nil
 }
 
-type SourceParser struct {
-	stepParser *StepParser
-}
-
-func (p *SourceParser) Parse(record []string) (interface{}, error) {
-	// Skip header
-	if record[0] == "name" {
-		return nil, nil
+// parsePerson parses a person record.
+func (p *Parser) parsePerson(record []string) (*Person, error) {
+	if record[0] == "" {
+		return nil, fmt.Errorf("Person name required")
 	}
 
-	s := Source{}
-
-	s.Name = record[0]
-
-	steps, err := p.stepParser.parseSteps(record[1])
+	steps, err := p.parseStepString(record[3])
 
 	if err != nil {
 		return nil, err
 	}
 
-	s.Steps = steps
-	s.Usage = record[2]
-	s.Version = record[3]
-
-	return &s, nil
-}
-
-type PersonParser struct {
-	stepParser *StepParser
-}
-
-func (p *PersonParser) Parse(record []string) (interface{}, error) {
-	// Skip header
-	if record[0] == "name" {
-		return nil, nil
+	b := &Person{
+		Name:  record[0],
+		Email: record[1],
+		Role:  record[2],
+		Steps: steps,
 	}
 
-	b := Person{}
-
-	b.Name = record[0]
-	b.Email = record[1]
-	b.Role = record[2]
-
-	steps, err := p.stepParser.parseSteps(record[3])
-
-	if err != nil {
-		return nil, err
-	}
-
-	b.Steps = steps
-
-	return &b, nil
+	return b, nil
 }
 
-type EntityParser struct {
-	model *dms.Model
-	seen  map[string]struct{}
-}
+func (p *Parser) parseEntity(record []string) (*Entity, error) {
+	e := &Entity{}
 
-func (p *EntityParser) Parse(record []string) (interface{}, error) {
-	// Skip header
-	if record[0] == "entity" {
-		return nil, nil
-	}
-
-	e := Entity{}
-
-	name, err := p.ValidateName(record[0])
+	name, err := p.validateEntityName(record[0])
 
 	if err != nil {
 		return nil, err
@@ -398,37 +270,13 @@ func (p *EntityParser) Parse(record []string) (interface{}, error) {
 	e.Truncation = record[4]
 	e.Limit = record[5]
 
-	return &e, nil
+	return e, nil
 }
 
-func (p *EntityParser) Validate() []error {
-	var (
-		ok   bool
-		name string
-		errs []error
-	)
-
-	for _, t := range p.model.Tables.List() {
-		for _, f := range t.Fields.List() {
-			name = fmt.Sprintf("%s%s%s", t.Name, EntityDelim, f.Name)
-
-			if _, ok = p.seen[name]; !ok && f.Required {
-				errs = append(errs, fmt.Errorf("Missing field '%s'", name))
-			}
-		}
-	}
-
-	return errs
-}
-
-func (p *EntityParser) ValidateName(name string) (string, error) {
-	if p.seen == nil {
-		p.seen = make(map[string]struct{})
-	}
-
+func (p *Parser) validateEntityName(name string) (string, error) {
 	toks := strings.SplitN(strings.ToLower(name), EntityDelim, 2)
 
-	table := p.model.Tables.Get(toks[0])
+	table := p.Model.Tables.Get(toks[0])
 
 	if table == nil {
 		if len(toks) > 1 {
@@ -438,7 +286,6 @@ func (p *EntityParser) ValidateName(name string) (string, error) {
 	}
 
 	if len(toks) == 1 {
-		p.seen[name] = struct{}{}
 		return name, nil
 	}
 
@@ -448,51 +295,483 @@ func (p *EntityParser) ValidateName(name string) (string, error) {
 		return "", fmt.Errorf("Unknown field '%s'", name)
 	}
 
-	p.seen[name] = struct{}{}
-
 	return name, nil
 }
 
-func parseEntities(ep *EntityParser, s string) ([]string, error) {
-	names := trimSpace(strings.Split(strings.ToLower(s), TokenDelim))
+// parseEntityString parses a string and validates it against an entity parser
+// that is populated with entities.
+func (p *Parser) parseEntityString(s string) ([]*Entity, error) {
+	var (
+		err      error
+		entities []*Entity
+	)
 
-	for i, n := range names {
-		if n == "all" || n == "" {
-			return flatten(ep.model), nil
+	for _, name := range strings.Split(strings.ToLower(s), TokenDelim) {
+		if name == "all" || name == "" {
+			var i int
+			entities = make([]*Entity, len(p.entities))
+
+			for _, e := range p.entities {
+				entities[i] = e
+				i++
+			}
+
+			return entities, nil
 		}
 
-		n, err := ep.ValidateName(n)
+		name, err = p.validateEntityName(name)
 
 		if err != nil {
 			return nil, err
 		}
 
-		names[i] = n
+		// Table; add all fields for the table verifying they were defined in
+		// the entities file.
+		if !strings.Contains(name, EntityDelim) {
+			t := p.Model.Tables.Get(name)
+
+			// Include the table itself as an entity if defined in the entity list.
+			if e, ok := p.entities[name]; ok {
+				entities = append(entities, e)
+			} else {
+				return nil, fmt.Errorf("Entity '%s' not defined", name)
+			}
+
+			for _, f := range t.Fields.List() {
+				n := fmt.Sprintf("%s%s%s", name, EntityDelim, f.Name)
+
+				if e, ok := p.entities[n]; ok {
+					entities = append(entities, e)
+				} else {
+					return nil, fmt.Errorf("Entity '%s' not defined", n)
+				}
+			}
+
+			continue
+		}
+
+		if e, ok := p.entities[name]; ok {
+			entities = append(entities, e)
+		} else {
+			return nil, fmt.Errorf("Entity '%s' not defined", name)
+		}
 	}
 
-	return names, nil
+	return entities, nil
 }
 
-func parseAvailability(v string) (string, error) {
-	x := strings.ToLower(v)
+func (p *Parser) ReadEntities(r io.Reader) []error {
+	var (
+		e    *Entity
+		err  error
+		errs []error
+	)
 
-	switch x {
-	case "available", "unavailable", "unknown":
-		return x, nil
+	err = ReadRows(r, func(row []string) {
+		e, err = p.parseEntity(row)
+
+		if err != nil {
+			errs = append(errs, err)
+			return
+		}
+
+		if _, ok := p.entities[e.Name]; ok {
+			err = fmt.Errorf("Duplicate entity '%s' found", e.Name)
+			errs = append(errs, err)
+			return
+		}
+
+		p.entities[e.Name] = e
+	})
+
+	// Error returned while reading.
+	if err != nil {
+		return []error{err}
 	}
 
-	return "", fmt.Errorf("Invalid choice for availability: %s", v)
+	return errs
 }
 
-func parseTransmitting(v string) (bool, error) {
-	x := strings.ToLower(v)
+func (p *Parser) ReadSteps(r io.Reader) []error {
+	var (
+		s    *Step
+		err  error
+		errs []error
+	)
 
-	switch x {
-	case "", "yes", "1", "true":
-		return true, nil
-	case "no", "0", "false":
-		return false, nil
+	err = ReadRows(r, func(row []string) {
+		s, err = p.parseStep(row)
+
+		// Special case to log steps to prevent cascading errors.
+		if err != nil {
+			errs = append(errs, err)
+		}
+
+		if s != nil {
+			if _, ok := p.steps[s.ID]; ok {
+				err = fmt.Errorf("Duplicate step '%d', found", s.ID)
+				errs = append(errs, err)
+				return
+			}
+
+			p.steps[s.ID] = s
+		}
+	})
+
+	// Error returned while reading.
+	if err != nil {
+		return []error{err}
 	}
 
-	return false, fmt.Errorf("Invalid choice for transmitting: %s", v)
+	return errs
+}
+
+func (p *Parser) ReadTools(r io.Reader) []error {
+	var (
+		t    *Tool
+		err  error
+		errs []error
+	)
+
+	err = ReadRows(r, func(row []string) {
+		t, err = p.parseTool(row)
+
+		if err != nil {
+			errs = append(errs, err)
+			return
+		}
+
+		if _, ok := p.tools[t.Name]; ok {
+			err = fmt.Errorf("Duplicate tool '%s', found", t.Name)
+			errs = append(errs, err)
+			return
+		}
+
+		p.tools[t.Name] = t
+	})
+
+	// Error returned while reading.
+	if err != nil {
+		return []error{err}
+	}
+
+	return errs
+}
+
+func (p *Parser) ReadSources(r io.Reader) []error {
+	var (
+		s    *Source
+		err  error
+		errs []error
+	)
+
+	err = ReadRows(r, func(row []string) {
+		s, err = p.parseSource(row)
+
+		if err != nil {
+			errs = append(errs, err)
+			return
+		}
+
+		if _, ok := p.sources[s.Name]; ok {
+			err = fmt.Errorf("Duplicate source '%s', found", s.Name)
+			errs = append(errs, err)
+			return
+		}
+
+		p.sources[s.Name] = s
+	})
+
+	// Error returned while reading.
+	if err != nil {
+		return []error{err}
+	}
+
+	return errs
+}
+
+func (p *Parser) ReadPeople(r io.Reader) []error {
+	var (
+		v    *Person
+		err  error
+		errs []error
+	)
+
+	err = ReadRows(r, func(row []string) {
+		v, err = p.parsePerson(row)
+
+		if err != nil {
+			errs = append(errs, err)
+			return
+		}
+
+		if _, ok := p.people[v.Name]; ok {
+			err = fmt.Errorf("Duplicate step '%v', found", v.Name)
+			errs = append(errs, err)
+			return
+		}
+
+		p.people[v.Name] = v
+	})
+
+	// Error returned while reading.
+	if err != nil {
+		return []error{err}
+	}
+
+	return errs
+}
+
+// EntitiesWithoutSteps returns a list of entities without steps associated with them.
+func (p *Parser) EntitiesWithoutSteps() []*Entity {
+	// Copy the map.
+	m := make(map[string]*Entity, len(p.entities))
+
+	for n, e := range p.entities {
+		// Only steps that are being transmitted need to have steps
+		// associated with them.
+		if e.Transmitting {
+			m[n] = e
+		}
+	}
+
+	for _, s := range p.steps {
+		for _, e := range s.Entities {
+			if _, ok := m[e.Name]; ok {
+				delete(m, e.Name)
+			}
+		}
+	}
+
+	i := 0
+	o := make([]*Entity, len(m))
+
+	for _, e := range m {
+		o[i] = e
+		i++
+	}
+
+	return o
+}
+
+// MissingEntities determines the entities defined in the model, but that
+// have not be evaluated by the parser.
+func (p *Parser) MissingEntities(req bool, ignores []string) []string {
+	var (
+		ok    bool
+		name  string
+		names []string
+	)
+
+	igidx := make(map[string]struct{}, len(ignores))
+
+	for _, name := range ignores {
+		igidx[name] = struct{}{}
+	}
+
+	for _, t := range p.Model.Tables.List() {
+		if _, ok = igidx[t.Name]; ok {
+			continue
+		}
+
+		for _, f := range t.Fields.List() {
+			name = fmt.Sprintf("%s%s%s", t.Name, EntityDelim, f.Name)
+
+			if _, ok = igidx[name]; ok {
+				continue
+			}
+
+			if _, ok = p.entities[name]; !ok && (req && f.Required) {
+				names = append(names, name)
+			}
+		}
+	}
+
+	return names
+}
+
+// Entities returns the entities that have been parsed.
+func (p *Parser) Entities() []*Entity {
+	i := 0
+	a := make([]*Entity, len(p.entities))
+
+	for _, e := range p.entities {
+		a[i] = e
+		i++
+	}
+
+	return a
+}
+
+// Steps returns the steps that have been parsed.
+func (p *Parser) Steps() []*Step {
+	i := 0
+	a := make([]*Step, len(p.steps))
+
+	for _, s := range p.steps {
+		a[i] = s
+		i++
+	}
+
+	return a
+}
+
+// Sources returns the sources that have been parsed.
+func (p *Parser) Sources() []*Source {
+	i := 0
+	a := make([]*Source, len(p.sources))
+
+	for _, s := range p.sources {
+		a[i] = s
+		i++
+	}
+
+	return a
+}
+
+// Tools returns the tools that have been parsed.
+func (p *Parser) Tools() []*Tool {
+	i := 0
+	a := make([]*Tool, len(p.tools))
+
+	for _, s := range p.tools {
+		a[i] = s
+		i++
+	}
+
+	return a
+}
+
+// People returns the people that have been parsed.
+func (p *Parser) People() []*Person {
+	i := 0
+	a := make([]*Person, len(p.people))
+
+	for _, s := range p.people {
+		a[i] = s
+		i++
+	}
+
+	return a
+}
+
+func (p *Parser) ReadDir(dir string, handle ErrorHandler) error {
+	var (
+		name string
+		file *os.File
+		err  error
+		errs []error
+	)
+
+	// Entities.
+	name = filepath.Join(dir, EntitiesFile)
+	file, err = os.Open(name)
+
+	if err != nil {
+		return err
+	}
+
+	errs = p.ReadEntities(file)
+
+	file.Close()
+	handle(EntitiesFile, errs)
+
+	// Steps.
+	name = filepath.Join(dir, StepsFile)
+	file, err = os.Open(name)
+
+	if err != nil {
+		return err
+	}
+
+	errs = p.ReadSteps(file)
+
+	file.Close()
+	handle(StepsFile, errs)
+
+	// Tools.
+	name = filepath.Join(dir, ToolsFile)
+	file, err = os.Open(name)
+
+	if err != nil {
+		return err
+	}
+
+	errs = p.ReadTools(file)
+
+	file.Close()
+	handle(ToolsFile, errs)
+
+	// Sources.
+	name = filepath.Join(dir, SourcesFile)
+	file, err = os.Open(name)
+
+	if err != nil {
+		return err
+	}
+
+	errs = p.ReadSources(file)
+
+	file.Close()
+	handle(SourcesFile, errs)
+
+	// People.
+	name = filepath.Join(dir, PeopleFile)
+	file, err = os.Open(name)
+
+	if err != nil {
+		return err
+	}
+
+	errs = p.ReadPeople(file)
+	file.Close()
+
+	handle(PeopleFile, errs)
+
+	return nil
+}
+
+// NewParser initializes a new parser.
+func NewParser(model *dms.Model) *Parser {
+	return &Parser{
+		Model:    model,
+		entities: make(map[string]*Entity),
+		steps:    make(map[int]*Step),
+		tools:    make(map[string]*Tool),
+		people:   make(map[string]*Person),
+		sources:  make(map[string]*Source),
+	}
+}
+
+type ErrorHandler func(name string, errs []error)
+
+type ErrorPrinter struct {
+	Limit  int
+	Writer io.Writer
+}
+
+// Print implements the ErrorHandler
+func (p *ErrorPrinter) Handle(name string, errs []error) {
+	if len(errs) > 0 {
+		fmt.Fprintln(p.Writer, "---")
+
+		if len(errs) == 1 {
+			fmt.Fprintf(p.Writer, "1 error has been detected for '%s'\n", name)
+		} else {
+			fmt.Fprintf(p.Writer, "%d errors have been detected for '%s'\n", len(errs), name)
+		}
+
+		printErrors(p.Writer, errs, p.Limit)
+	}
+}
+
+func printErrors(w io.Writer, errs []error, trunc int) {
+	for i, err := range errs {
+		if trunc > 0 && i == trunc {
+			fmt.Fprintf(w, "[truncated %d errors]\n", len(errs)-trunc)
+			break
+		}
+
+		fmt.Fprintln(w, "*", err)
+	}
 }

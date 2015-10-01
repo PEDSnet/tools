@@ -10,25 +10,27 @@ $ pedsnet-etlprov [-model <model>] [-version <version>] [-service <service>] <di
 ### Example
 
 ```bash
-$ pedsnet-etlprov path/to/files
-Validating against model 'pedsnet/1.0.0'
-File entities.csv looks good!
-File steps.csv looks good!
-File tools.csv looks good!
-File sources.csv looks good!
-File people.csv looks good!
-Found 58 entities
-Found 14 steps
-Found 1 tools
-Found 2 sources
-Found 1 persons
-```
-
-If there are errors, a set of messages will be printed out.
-
-```bash
-A few problems have been detected with the entities.csv file:
-* Unknown entity `oraganization` for pedsnet data model
-* Unknown entity `osbervation.relevant_condition_concept_id` for pedsnet data model
-* Unknown entity `osbervation.unit_source_value` for pedsnet data model
+$ pedsnet-etlprov -model i2b2_pedsnet -version 2.0.0 ./files
+Validating against model 'i2b2_pedsnet/2.0.0'
+Scanning files in '/path/to/files/'
+---
+8 errors have been detected for 'steps.csv'
+* Error parsing previous step 'none'
+* Entity 'patient_dimension.gestational_age_num' not defined
+* Entity 'patient_dimension.gestational_age_num' not defined
+* Entity 'visit_dimension.admit_src_destcd' not defined
+* Entity 'patient_dimension.gestational_age_num' not defined
+* Entity 'visit_dimension.admit_src_destcd' not defined
+* Entity 'provider_dimension' not defined
+* Step 70 does not exist
+---
+2 entities are missing from the model
+* provider_dimension.provider_id
+* provider_dimension.provider_path
+---
+95 entities
+18 steps
+10 tools
+2 sources
+3 persons
 ```
