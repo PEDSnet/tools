@@ -43,9 +43,17 @@ var feedbackCmd = &cobra.Command{
 				fis, _ := ioutil.ReadDir(path)
 
 				for _, fi := range fis {
-					if !fi.IsDir() {
-						files = append(files, filepath.Join(path, fi.Name()))
+					if fi.IsDir() {
+						continue
 					}
+
+					name := fi.Name()
+
+					if filepath.Ext(name) != ".csv" {
+						continue
+					}
+
+					files = append(files, filepath.Join(path, name))
 				}
 			} else {
 				files = append(files, path)
