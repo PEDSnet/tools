@@ -33,6 +33,7 @@ install:
 	go get github.com/spf13/cobra
 	go get github.com/mitchellh/gox
 	go get github.com/chop-dbhi/data-models-service/client
+	go get github.com/blang/semver
 
 test:
 	go test -cover ./...
