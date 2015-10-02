@@ -31,6 +31,7 @@ func main() {
 		service  string
 		ignore   string
 		truncate bool
+		ver      bool
 	)
 
 	flag.StringVar(&model, "model", "pedsnet", "Name of the data model to validate against.")
@@ -38,8 +39,14 @@ func main() {
 	flag.StringVar(&service, "service", "http://data-models.origins.link", "URL to the data models service.")
 	flag.StringVar(&ignore, "ignore", "", "Comma-separated list of entities to ignore.")
 	flag.BoolVar(&truncate, "truncate", true, "Truncate the list of errors.")
+	flag.BoolVar(&ver, "v", false, "Prints the version.")
 
 	flag.Parse()
+
+	if ver {
+		fmt.Println(progVersion)
+		return
+	}
 
 	args := flag.Args()
 
