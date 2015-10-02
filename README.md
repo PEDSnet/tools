@@ -1,29 +1,17 @@
-# PEDSnet Origins
+# PEDSnet Tools
 
-The service's job is to integrate the data from these sources and make the information accessible through an API. A client will also be created to consume that API and present the information is addressable which enables it to be linked to by other webpages.
+This repository contains various tools and services for PEDSnet.
 
-Project layout:
+## Programs
 
-- `web/` - Web client files that consume the service and render views.
-- `service/` - Service that exposes endpoints for monitoring the data.
-- `generators/` - Custom Origins fact generators for PEDSnet-specific pedsnet.
+Download the latest release for each program on the [releases page](https://github.com/PEDSnet/tools/releases).
 
-### Generators
+- [pedsnet-etlprov](https://github.com/PEDSnet/tools/tree/master/cmd/etlprov)
+    - Platforms: OS X, Linux, Windows
+- [pedsnet-dqa](https://github.com/PEDSnet/tools/tree/master/cmd/dqa)
+    - Platforms: OS X
 
-- CSV-based DQA results
-- ETL conventions document annotations
-- Vocabulary concepts
+## Services
 
-## Development
-
-Requires a working [Go](http://golang.org) installation.
-
-```
-make install
-```
-
-Build generators.
-
-```
-make build-generators
-```
+- [ETL Conventions Service](https://github.com/PEDSnet/tools/tree/master/services/etl)
+- [Annotated Data Dictionary Service](https://github.com/PEDSnet/tools/tree/master/services/data-dictionary)
