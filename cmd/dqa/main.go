@@ -7,8 +7,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var buildVersion string
-
 var mainCmd = &cobra.Command{
 	Use: "pedsnet-dqa",
 
@@ -25,7 +23,7 @@ var versionCmd = &cobra.Command{
 	Short: "Prints the version of the program.",
 
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Fprintf(os.Stdout, "%s\n", buildVersion)
+		fmt.Fprintf(os.Stdout, "%s\n", progVersion)
 	},
 }
 
