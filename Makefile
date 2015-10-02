@@ -6,14 +6,6 @@ clean:
 doc:
 	godoc -http=:6060
 
-build-generators:
-	go build -o $(GOPATH)/bin/origins-generate-pedsnet-vocab \
-		./generators/vocab
-	go build -o $(GOPATH)/bin/origins-generate-pedsnet-etl \
-		./generators/etl
-	go build -o $(GOPATH)/bin/origins-generate-pedsnet-dqa \
-		./generators/dqa
-
 build-commands:
 	mkdir -p bin
 
