@@ -22,12 +22,12 @@ Copied persistent issues from 'ETLv3'
 
 ## Rank Issues
 
-The `assign-rank-to-issues` command assigns a rank to issues based on a set of pre-determined rules. The set of rules are listed maintained [here](https://github.com/PEDSnet/Data-Quality/tree/master/SecondaryReports/Ranking).
+The `assign-rank-to-issues` command assigns a rank to issues based on a set of pre-determined rules. The set of rules are listed maintained [here](https://github.com/PEDSnet/Data-Quality/tree/master/SecondaryReports/Ranking). The rules are fetched dynamically which requires authorization against the repository (since it is private). This is done by supplying a [GitHub access token](https://help.github.com/articles/creating-an-access-token-for-command-line-use/) with the `--token` option.
 
 Do a *dry run* on a set of results:
 
 ```
-$ pedsnet-dqa assign-rank-to-issues --dryrun ./ETLv4
+$ pedsnet-dqa assign-rank-to-issues --dryrun --token=abc123 ./ETLv4
 +----------------+-------------------+-------------------------------+------------+------------+----------+----------+---------+
 |      TYPE      |       TABLE       |             FIELD             | ISSUE CODE | PREVALENCE | NEW RANK | OLD RANK | CHANGED |
 +----------------+-------------------+-------------------------------+------------+------------+----------+----------+---------+

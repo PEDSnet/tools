@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -27,6 +28,18 @@ var rankIssuesCmd = &cobra.Command{
 		}
 
 		dryRun := viper.GetBool("rankissues.dryrun")
+		token := viper.GetString("rankissues.token")
+
+		if token == "" {
+			fmt.Fprintln(os.Stderr, "Token required. Use the --token option.")
+			os.Exit(1)
+		}
+
+		ruleSets, err := FetchRules(token)
+
+		if err != nil {
+			log.Fatal(err)
+		}
 
 		reports, err := ReadResultsFromDir(args[0], true)
 
@@ -42,8 +55,10 @@ var rankIssuesCmd = &cobra.Command{
 		bold := color.New(color.Bold, color.FgGreen).SprintFunc()
 
 		var (
-			changedText string
-			rankText    string
+			changedText    string
+			oldRankText    string
+			newRankText    string
+			persistentText string
 		)
 
 		var matches rankMatches
@@ -54,27 +69,34 @@ var rankIssuesCmd = &cobra.Command{
 			for _, r := range report.Results {
 				changedText = "No"
 
-				if ruleset, rank, ok := RunRules(r); ok {
+				if isPersistent(r) {
+					persistentText = "Yes"
+				} else {
+					persistentText = "No"
+				}
+
+				if ruleset, rank, ok := RunRules(ruleSets, r); ok {
+					oldRankText = r.Rank.String()
+					newRankText = rank.String()
+
 					if r.Rank != rank {
 						changedText = bold("Yes")
-						rankText = bold(rank.String())
+						r.Rank = rank
 						fileChanged = true
-					} else {
-						rankText = r.Rank.String()
 					}
 
 					matches = append(matches, []string{
 						ruleset.Name,
 						r.Table,
 						r.Field,
+						r.Goal,
 						r.IssueCode,
 						r.Prevalence,
-						rankText,
-						r.Rank.String(),
+						newRankText,
+						oldRankText,
 						changedText,
+						persistentText,
 					})
-
-					r.Rank = rank
 				}
 			}
 
@@ -112,11 +134,13 @@ var rankIssuesCmd = &cobra.Command{
 				"type",
 				"table",
 				"field",
+				"goal",
 				"issue code",
 				"prevalence",
 				"new rank",
 				"old rank",
 				"changed",
+				"persistent",
 			})
 
 			sort.Sort(matches)
@@ -124,6 +148,8 @@ var rankIssuesCmd = &cobra.Command{
 			tw.AppendBulk([][]string(matches))
 
 			tw.Render()
+		} else {
+			fmt.Println("All ranks already match.")
 		}
 	},
 }
@@ -164,6 +190,8 @@ func init() {
 	flags := rankIssuesCmd.Flags()
 
 	flags.Bool("dryrun", false, "Outputs a summary of what rank matches without saving the files.")
+	flags.String("token", "", "GitHub token to fetch the rules.")
 
 	viper.BindPFlag("rankissues.dryrun", flags.Lookup("dryrun"))
+	viper.BindPFlag("rankissues.token", flags.Lookup("token"))
 }

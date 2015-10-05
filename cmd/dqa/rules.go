@@ -1,22 +1,115 @@
 package main
 
 import (
+	"encoding/csv"
 	"fmt"
+	"io"
+	"net/http"
+	"regexp"
 	"strings"
+	"sync"
 )
 
+var (
+	dataQualityContentsURI = "https://api.github.com/repos/PEDSnet/Data-Quality/contents/%s"
+
+	ruleSetFiles = map[string]string{
+		"Admin":       "SecondaryReports/Ranking/RuleSet1_Admin.csv",
+		"Demographic": "SecondaryReports/Ranking/RuleSet2_Demographic.csv",
+		"Fact":        "SecondaryReports/Ranking/RuleSet3_Fact.csv",
+	}
+)
+
+func fetchRules(name, path string, token string) (*RuleSet, error) {
+	url := fmt.Sprintf(dataQualityContentsURI, path)
+	req, err := http.NewRequest("GET", url, nil)
+
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Accept", "application/vnd.github.v3.raw")
+	req.Header.Set("Authorization", "token "+token)
+
+	resp, err := http.DefaultClient.Do(req)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	p, err := NewRulesParser(resp.Body)
+
+	if err != nil {
+		return nil, err
+	}
+
+	rules, err := p.ParseAll()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &RuleSet{
+		Name:  name,
+		Rules: rules,
+	}, nil
+}
+
+func FetchRules(token string) ([]*RuleSet, error) {
+	size := len(ruleSetFiles)
+
+	sets := make([]*RuleSet, size)
+	errs := make([]error, size)
+
+	wg := sync.WaitGroup{}
+	wg.Add(size)
+
+	i := 0
+
+	for n, p := range ruleSetFiles {
+		go func(index int, name, path string) {
+			if rs, err := fetchRules(name, path, token); err != nil {
+				errs[index] = err
+			} else {
+				sets[index] = rs
+			}
+
+			wg.Done()
+		}(i, n, p)
+
+		i++
+	}
+
+	wg.Wait()
+
+	if errs != nil {
+		for _, err := range errs {
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return sets, nil
+}
+
 // RunRules iterates through all rules for the result until a match is found.
-func RunRules(r *Result) (*RuleSet, Rank, bool) {
-	if rank, ok := AdminRules.Matches(r); ok {
-		return AdminRules, rank, true
-	}
+func RunRules(sets []*RuleSet, r *Result) (*RuleSet, Rank, bool) {
+	var (
+		rs    *RuleSet
+		rule  *Rule
+		match bool
+		rank  Rank
+	)
 
-	if rank, ok := DemographicRules.Matches(r); ok {
-		return DemographicRules, rank, true
-	}
-
-	if rank, ok := FactRules.Matches(r); ok {
-		return FactRules, rank, true
+	for _, rs = range sets {
+		for _, rule = range rs.Rules {
+			if rank, match = rule.Matches(r); match {
+				return rs, rank, true
+			}
+		}
 	}
 
 	return nil, 0, false
@@ -38,22 +131,35 @@ type Matcher interface {
 
 type Condition func(r *Result) bool
 
+// Rule defines a mapping from a table, field condition, issue code, and
+// prevalence to a specific rank.
 type Rule struct {
-	Conditions []Condition
-	Map        map[[2]string]Rank
+	Table      string
+	Condition  Condition
+	IssueCode  string
+	Prevalence string
+	Rank       Rank
 }
 
+// Matches takes a result and determines if the result matches the rule.
 func (r *Rule) Matches(s *Result) (Rank, bool) {
-	for _, m := range r.Conditions {
-		if !m(s) {
-			return 0, false
-		}
+	if strings.ToLower(s.Table) != r.Table {
+		return 0, false
 	}
 
-	// Get the rank based on the issue code and prevalence.
-	rank, ok := r.Map[[2]string{strings.ToLower(s.IssueCode), strings.ToLower(s.Prevalence)}]
+	if !r.Condition(s) {
+		return 0, false
+	}
 
-	return rank, ok
+	if strings.ToLower(s.IssueCode) != r.IssueCode {
+		return 0, false
+	}
+
+	if strings.ToLower(s.Prevalence) != r.Prevalence {
+		return 0, false
+	}
+
+	return r.Rank, true
 }
 
 // Field conditionals.
@@ -86,9 +192,8 @@ func isOther(r *Result) bool {
 }
 
 type RuleSet struct {
-	Name   string
-	Tables []string
-	Rules  []*Rule
+	Name  string
+	Rules []*Rule
 }
 
 func (rs *RuleSet) String() string {
@@ -101,10 +206,6 @@ func (rs *RuleSet) Matches(r *Result) (Rank, bool) {
 		return 0, false
 	}
 
-	if !inSlice(r.Table, rs.Tables) {
-		return 0, false
-	}
-
 	for _, rule := range rs.Rules {
 		if rank, ok := rule.Matches(r); ok {
 			return rank, true
@@ -114,276 +215,251 @@ func (rs *RuleSet) Matches(r *Result) (Rank, bool) {
 	return 0, false
 }
 
-var AdminRules = &RuleSet{
-	Name: "Administrative",
+// Header of a valid rules file.
+var (
+	// Matches the contents of `in (string1, string2, ...)`
+	inStmtRe = regexp.MustCompile(`^in\s*\(([^\)]+)\)$`)
 
-	Tables: []string{
-		"care_site",
-		"location",
-		"provider",
-	},
+	// Matches a standard identifier, including field and table names
+	// and prevalence. This is used to validate the value.
+	identRe = regexp.MustCompile(`^(?i:[a-z0-9_]+)$`)
 
-	Rules: []*Rule{
-		// Admin rules
-		{
-			Conditions: []Condition{
-				isPrimaryKey,
-			},
-			Map: map[[2]string]Rank{
-				{"g2-013", "high"}:   MediumRank,
-				{"g2-013", "medium"}: LowRank,
-				{"g2-013", "low"}:    LowRank,
-			},
-		},
+	rulesHeader = []string{
+		"Table",
+		"Field",
+		"Issue Code",
+		"Prevalence",
+		"Rank",
+	}
 
-		{
-			Conditions: []Condition{
-				isSourceValue,
-			},
-			Map: map[[2]string]Rank{
-				{"g2-011", "full"}:   MediumRank,
-				{"g2-011", "high"}:   MediumRank,
-				{"g2-011", "medium"}: LowRank,
-				{"g4-002", "full"}:   MediumRank,
-				{"g4-002", "high"}:   MediumRank,
-				{"g4-002", "medium"}: MediumRank,
-				{"g4-002", "low"}:    LowRank,
-			},
-		},
+	ruleFieldTypes = []string{
+		"is primary key",
+		"is source value",
+		"is date/year",
+		"is concept id",
+		"is other",
+	}
+)
 
-		{
-			Conditions: []Condition{
-				isConceptId,
-			},
-			Map: map[[2]string]Rank{
-				{"g1-002", "high"}:   HighRank,
-				{"g1-002", "medium"}: HighRank,
-				{"g2-006", "full"}:   HighRank,
-			},
-		},
-
-		{
-			Conditions: []Condition{
-				isForeignKey,
-			},
-			Map: map[[2]string]Rank{
-				{"g2-013", "high"}:   MediumRank,
-				{"g2-013", "medium"}: LowRank,
-				{"g2-013", "low"}:    LowRank,
-				{"g4-002", "full"}:   MediumRank,
-			},
-		},
-
-		{
-			Conditions: []Condition{
-				isOther,
-			},
-			Map: map[[2]string]Rank{
-				{"g2-011", "low"}:    LowRank,
-				{"g4-002", "full"}:   MediumRank,
-				{"g4-002", "high"}:   MediumRank,
-				{"g4-002", "medium"}: MediumRank,
-				{"g4-002", "low"}:    LowRank,
-			},
-		},
-	},
+type RulesParseError struct {
+	line int
+	err  error
 }
 
-var DemographicRules = &RuleSet{
-	Name: "Demographic",
-
-	Tables: []string{
-		"person",
-		"death",
-		"observation_period",
-	},
-
-	Rules: []*Rule{
-		// Demographic rules
-		{
-			Conditions: []Condition{
-				isPrimaryKey,
-			},
-			Map: map[[2]string]Rank{
-				{"g4-001", "high"}:   HighRank,
-				{"g1-003", "low"}:    MediumRank,
-				{"g2-013", "medium"}: HighRank,
-			},
-		},
-
-		{
-			Conditions: []Condition{
-				isSourceValue,
-			},
-			Map: map[[2]string]Rank{
-				{"g4-002", "full"}: MediumRank,
-				{"g4-002", "high"}: MediumRank,
-			},
-		},
-
-		{
-			Conditions: []Condition{
-				isForeignKey,
-			},
-			Map: map[[2]string]Rank{
-				{"g1-003", "low"}:     MediumRank,
-				{"g2-013", "medium"}:  HighRank,
-				{"g2-013", "low"}:     MediumRank,
-				{"g2-005", "high"}:    LowRank,
-				{"g3-002", "unknown"}: MediumRank,
-			},
-		},
-
-		{
-			Conditions: []Condition{
-				isOther,
-			},
-			Map: map[[2]string]Rank{
-				{"g2-011", "low"}:  MediumRank,
-				{"g4-002", "full"}: HighRank,
-			},
-		},
-
-		{
-			Conditions: []Condition{
-				isConceptId,
-			},
-			Map: map[[2]string]Rank{
-				{"g4-002", "full"}:    HighRank,
-				{"g2-006", "unknown"}: HighRank,
-			},
-		},
-
-		{
-			Conditions: []Condition{
-				isDateYear,
-			},
-			Map: map[[2]string]Rank{
-				{"g2-009", "low"}: MediumRank,
-				{"g2-010", "low"}: MediumRank,
-				{"g2-013", "low"}: MediumRank,
-			},
-		},
-	},
+func (e *RulesParseError) Error() string {
+	return fmt.Sprintf("error parsing rules on line %d: %s", e.line, e.err)
 }
 
-var FactRules = &RuleSet{
-	Name: "Fact",
+func NewRulesParseError(line int, err error) error {
+	return &RulesParseError{line, err}
+}
 
-	Tables: []string{
-		"condition_occurrence",
-		"drug_exposure",
-		"fact_relationship",
-		"measurement",
-		"observation",
-		"procedure",
-		"visit_occurrence",
-		"visit_payer",
-	},
+type RulesParser struct {
+	cr   *csv.Reader
+	line int
+}
 
-	Rules: []*Rule{
-		{
-			Conditions: []Condition{
-				isPrimaryKey,
-			},
-			Map: map[[2]string]Rank{
-				{"g4-001", "full"}:   HighRank,
-				{"g2-013", "medium"}: HighRank,
-				{"g2-013", "high"}:   HighRank,
-				{"g2-013", "low"}:    HighRank,
-			},
-		},
+func (*RulesParser) isIdent(v string) bool {
+	return identRe.MatchString(v)
+}
 
-		{
-			Conditions: []Condition{
-				isSourceValue,
-			},
-			Map: map[[2]string]Rank{
-				{"g2-011", "full"}:    HighRank,
-				{"g4-002", "full"}:    HighRank,
-				{"g2-013", "unknown"}: MediumRank,
-				{"g2-004", "full"}:    HighRank,
-			},
-		},
+func (p *RulesParser) parseInSet(v string) ([]string, error) {
+	var l []string
+	m := inStmtRe.FindAllStringSubmatch(v, 1)
 
-		// Custom match.
-		{
-			Conditions: []Condition{
-				func(r *Result) bool {
-					return inSlice(r.Field, []string{
-						"provider_id",
-						"care_site",
-					})
-				},
-			},
-			Map: map[[2]string]Rank{
-				{"g2-013", "low"}:  MediumRank,
-				{"g4-002", "low"}:  LowRank,
-				{"g2-005", "high"}: LowRank,
-			},
-		},
+	if len(m) > 0 {
+		// Split tokens in submatch and trim the space.
+		l = strings.Split(m[0][1], ",")
+	} else {
+		l = []string{v}
+	}
 
-		{
-			Conditions: []Condition{
-				func(r *Result) bool {
-					return inSlice(r.Field, []string{
-						"person_id",
-						"visit_occurrence_id",
-					})
-				},
-			},
-			Map: map[[2]string]Rank{
-				{"g2-013", "high"}:    HighRank,
-				{"g2-005", "high"}:    MediumRank,
-				{"g2-005", "medium"}:  MediumRank,
-				{"g3-002", "unknown"}: MediumRank,
-			},
-		},
+	for i, x := range l {
+		x = strings.TrimSpace(x)
 
-		{
-			Conditions: []Condition{
-				isDateYear,
-			},
-			Map: map[[2]string]Rank{
-				{"g2-009", "low"}:     MediumRank,
-				{"g2-008", "unknown"}: MediumRank,
-				{"g2-010", "low"}:     LowRank,
-				{"g2-013", "low"}:     MediumRank,
-				{"g2-003", "low"}:     MediumRank,
-			},
-		},
+		if !p.isIdent(x) {
+			return nil, fmt.Errorf("'%s' is not a valid identifier", x)
+		}
 
-		{
-			Conditions: []Condition{
-				isConceptId,
-			},
-			Map: map[[2]string]Rank{
-				{"g4-001", "unknown"}: HighRank,
-				{"g2-012", "high"}:    MediumRank,
-				{"g2-013", "high"}:    HighRank,
-				{"g1-001", "full"}:    HighRank,
-				{"g4-002", "full"}:    HighRank,
-				{"g1-002", "high"}:    HighRank,
-				{"g2-006", "high"}:    HighRank,
-				{"g2-006", "full"}:    HighRank,
-				{"g2-006", "low"}:     MediumRank,
-			},
-		},
+		l[i] = x
+	}
 
-		{
-			Conditions: []Condition{
-				isOther,
-			},
-			Map: map[[2]string]Rank{
-				{"g2-013", "high"}:    LowRank,
-				{"g2-011", "high"}:    HighRank,
-				{"g2-011", "full"}:    HighRank,
-				{"g4-002", "full"}:    HighRank,
-				{"g2-001", "unknown"}: LowRank,
-				{"g2-007", "high"}:    LowRank,
-				{"g2-007", "medium"}:  LowRank,
-				{"g2-007", "unknown"}: LowRank,
-			},
-		},
-	},
+	return l, nil
+}
+
+func (p *RulesParser) parseTable(v string) ([]string, error) {
+	return p.parseInSet(v)
+}
+
+func (p *RulesParser) parseField(v string) (Condition, error) {
+	// Check for type.
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "is primary key":
+		return isPrimaryKey, nil
+
+	case "is source value":
+		return isSourceValue, nil
+
+	case "is date/year":
+		return isDateYear, nil
+
+	case "is foreign key":
+		return isForeignKey, nil
+
+	case "is concept id":
+		return isConceptId, nil
+
+	case "is other":
+		return isOther, nil
+	}
+
+	// Assume in(..) or single value.
+	l, err := p.parseInSet(v)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return func(r *Result) bool {
+		return inSlice(r.Field, l)
+	}, nil
+}
+
+func (*RulesParser) parseIssueCode(v string) (string, error) {
+	return strings.ToLower(v), nil
+}
+
+func (p *RulesParser) parsePrevalence(v string) ([]string, error) {
+	if v == "-" {
+		return []string{"unknown"}, nil
+	}
+
+	if v == "in (*)" {
+		return []string{
+			"full",
+			"high",
+			"medium",
+			"low",
+			"unknown",
+		}, nil
+	}
+
+	return p.parseInSet(v)
+}
+
+func (*RulesParser) parseRank(v string) (Rank, error) {
+	switch strings.ToLower(v) {
+	case "high":
+		return HighRank, nil
+
+	case "medium":
+		return MediumRank, nil
+
+	case "low":
+		return LowRank, nil
+	}
+
+	return 0, fmt.Errorf("'%s' is not a valid rank", v)
+}
+
+func (p *RulesParser) Parse() ([]*Rule, error) {
+	row, err := p.cr.Read()
+
+	if err == io.EOF {
+		return nil, io.EOF
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	p.line++
+
+	var (
+		tables      []string
+		condition   Condition
+		issueCode   string
+		prevalences []string
+		rank        Rank
+	)
+
+	if tables, err = p.parseTable(row[0]); err != nil {
+		return nil, NewRulesParseError(p.line, err)
+	}
+
+	if condition, err = p.parseField(row[1]); err != nil {
+		return nil, NewRulesParseError(p.line, err)
+	}
+
+	if issueCode, err = p.parseIssueCode(row[2]); err != nil {
+		return nil, NewRulesParseError(p.line, err)
+	}
+
+	if prevalences, err = p.parsePrevalence(row[3]); err != nil {
+		return nil, NewRulesParseError(p.line, err)
+	}
+
+	if rank, err = p.parseRank(row[4]); err != nil {
+		return nil, NewRulesParseError(p.line, err)
+	}
+
+	var rules []*Rule
+
+	for _, t := range tables {
+		for _, p := range prevalences {
+			rules = append(rules, &Rule{
+				Table:      t,
+				Condition:  condition,
+				Prevalence: p,
+				IssueCode:  issueCode,
+				Rank:       rank,
+			})
+		}
+	}
+
+	return rules, nil
+}
+
+func (p *RulesParser) ParseAll() ([]*Rule, error) {
+	var (
+		err         error
+		line, rules []*Rule
+	)
+
+	for {
+		line, err = p.Parse()
+
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		rules = append(rules, line...)
+	}
+
+	return rules, nil
+}
+
+func NewRulesParser(r io.Reader) (*RulesParser, error) {
+	cr := csv.NewReader(&UniversalReader{r})
+
+	cr.FieldsPerRecord = len(rulesHeader)
+	cr.TrimLeadingSpace = true
+	cr.Comment = '#'
+	cr.LazyQuotes = true
+	cr.TrimLeadingSpace = true
+
+	_, err := cr.Read()
+
+	if err != nil {
+		return nil, NewRulesParseError(1, fmt.Errorf("invalid header"))
+	}
+
+	return &RulesParser{
+		line: 1,
+		cr:   cr,
+	}, nil
 }
