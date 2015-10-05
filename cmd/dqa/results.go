@@ -230,10 +230,13 @@ func (r *Report) Sub(f ResultGroupFunc) []*Report {
 	)
 
 	for _, s := range r.Results {
+		// i2b2-related conditions.
 		if r.I2b2 {
 			if s.Cause != "i2b2 transform" || s.Status != "solution proposed" {
 				continue
 			}
+		} else if s.Cause == "i2b2 transform" {
+			continue
 		}
 
 		if s.Status == "persistent" {
