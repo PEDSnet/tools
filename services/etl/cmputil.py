@@ -1,4 +1,3 @@
-from datetime import datetime
 from logger import logger
 
 
@@ -9,8 +8,6 @@ class Changelog():
         # evaluated. The key is the (domain, name) pair and the value
         # is the entity itself.
         self.cache = {}
-
-        self.timestamp = int(datetime.now().timestamp())
 
     def evaluate_attrs(self, current, previous):
         if current is None:
@@ -107,7 +104,7 @@ class Changelog():
             'labels': ('Diff', 'Add'),
             'domain': 'pedsnet.etlconv.changelog',
             'name': 'event_%s_%s' % (entity['batch'], entity['name']),
-            'timestamp': self.timestamp,
+            'timestamp': entity['timestamp'],
             'refs': {
                 'current': {
                     'domain': entity['domain'],
