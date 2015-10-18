@@ -58,7 +58,7 @@ table_parsers = (
 
     TableParser(
         'v2',
-        r'^Field\s*\|\s*Foreign Key Constraint',
+        r'^Field\s*\|\s*Foreign Key',
         r'''^
             (?P<name>[^\|]+)      # name of the field
             \|(?P<fk>[^\|]+)      # foreign key constraint
@@ -106,7 +106,7 @@ class Parser():
 
     def add_table(self, table, content=''):
         if table in self.model['tables']:
-            raise KeyError('table %s already added', table)
+            raise KeyError('table %s already added' % table)
 
         logger.debug('[parser] added table %s', table)
 
