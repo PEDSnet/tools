@@ -53,7 +53,6 @@ table_parsers = (
             \|(?P<type>[^\|]+)    # data type
             \|(?P<desc>[^\|]+)    # description
             (\|(?P<conv>[^\|]+))? # optional conventions
-            \|?$                  # optional end pipe
         '''),
 
     TableParser(
@@ -66,7 +65,6 @@ table_parsers = (
             \|(?P<type>[^\|]+)    # data type
             \|(?P<desc>[^\|]+)    # description
             (\|(?P<conv>[^\|]+))? # optional conventions
-            \|?$                  # optional end pipe
         '''),
 )
 
