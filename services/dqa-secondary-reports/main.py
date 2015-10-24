@@ -41,10 +41,10 @@ class DQAResource():
 
         dir_name = self.dir_name + '/SecondaryReports/'
 
-        for hospital in os.listdir(dir_name):
-            hosp_path = os.path.join(dir_name, hospital)
+        for site in os.listdir(dir_name):
+            hosp_path = os.path.join(dir_name, site)
 
-            if hospital == 'Ranking' or not os.path.isdir(hosp_path):
+            if site == 'Ranking' or not os.path.isdir(hosp_path):
                 continue
 
             # for each site, we only need data from the latest report for each
@@ -66,10 +66,10 @@ class DQAResource():
                         codecs.open(os.path.join(etl_path, file_names[0]), 'r',
                                     encoding='latin1'))
 
-                    if hospital in self.site_totals.setdefault(version, {}):
+                    if site in self.site_totals.setdefault(version, {}):
                         continue
 
-                    self.site_totals[version][hospital] = {}
+                    self.site_totals[version][site] = {}
                     self.table_totals.setdefault(version, {})
                     self.field_totals.setdefault(version, {})
 
@@ -78,26 +78,26 @@ class DQAResource():
                         buff = codecs.open(
                             os.path.join(etl_path, file_name), 'r',
                             encoding='latin1')
-                        p = Parser(buff, hospital, table,
+                        p = Parser(buff, site, table,
                                    self.field_totals[version],
                                    self.table_totals[version],
-                                   self.site_totals[version][hospital])
+                                   self.site_totals[version][site])
                         p.parse()
 
         # if a site has no issues with a certain status,
         # add a corresponding entry and set it to 0.
         for version in self.site_totals:
             status_names = []
-            for hospital in self.site_totals[version]:
-                for status in self.site_totals[version][hospital]:
+            for site in self.site_totals[version]:
+                for status in self.site_totals[version][site]:
                     status_names.append(status)
 
             status_names = set(status_names)
 
-            for hospital in self.site_totals[version]:
+            for site in self.site_totals[version]:
                 for status in status_names:
-                    if status not in self.site_totals[version][hospital]:
-                        self.site_totals[version][hospital][status] = 0
+                    if status not in self.site_totals[version][site]:
+                        self.site_totals[version][site][status] = 0
 
     def process_dictionary(self):
         path = self.dir_name + '/Dictionary/DCC_DQA_Dictionary.csv'
@@ -127,13 +127,15 @@ class DQAResource():
 
         logger.debug('done updating repo')
 
-    def serve_field_totals(self, version):
+    def serve_field_totals(self, version, table=None, field=None):
         "Entrypoint for Flask routing for a given version of PEDSnet data model"
         def versioned_data():
-            try:
+            if table is None:
                 info = self.field_totals[version]
-            except HTTPError:
-                return 503, ''
+            elif field is None:
+                info = self.field_totals[version][table]
+            else:
+                info = self.field_totals[version][table][field]
 
             return wrap_response(info)
 
@@ -141,32 +143,28 @@ class DQAResource():
 
     def serve_dict(self):
         "Entrypoint for Flask routing for dictionary of DQA status codes"
-        try:
-            info = self.dictionary
-        except HTTPError:
-            return 503, ''
 
-        return wrap_response(info)
+        return wrap_response(self.dictionary)
 
-    def serve_site_totals(self, version):
+    def serve_site_totals(self, version, site=None):
         "Entrypoint for Flask routing for site totals for a given version of PEDSnet data model"
         def versioned_data():
-            try:
+            if site is None:
                 info = self.site_totals[version]
-            except HTTPError:
-                return 503, ''
+            else:
+                info = self.site_totals[version][site]
 
             return wrap_response(info)
 
         return versioned_data
 
-    def serve_table_totals(self, version):
+    def serve_table_totals(self, version, table=None):
         "Entrypoint for Flask routing for table totals for a given version of PEDSnet data model"
         def versioned_data():
-            try:
+            if table is None:
                 info = self.table_totals[version]
-            except HTTPError:
-                return 503, ''
+            else:
+                info = self.table_totals[version][table]
 
             return wrap_response(info)
 
@@ -177,12 +175,8 @@ class DQAResource():
 
     def serve_versions(self):
         "Entrypoint for Flask routing for PEDSnet data model versions"
-        try:
-            info = self.get_versions()
-        except HTTPError:
-            return 503, ''
 
-        return wrap_response(info)
+        return wrap_response(self.get_versions())
 
 
 def wrap_response(info):
@@ -257,26 +251,59 @@ if __name__ == '__main__':
             'uuid': SERVICE_ID,
         })
 
-    app.add_url_rule('/pedsnet',
+    """
+    Make sure all urls end with a slash. The version without a trailing slash
+    will be taken care of automatically because Flask will automatically
+    redirect the user to the same URL with a trailing slash attached.
+    The reverse is not true.
+    """
+
+    app.add_url_rule('/pedsnet/',
                      'pedsnet_versions',
                      dqa_resource.serve_versions,
                      methods=['GET'])
 
     for version in dqa_resource.get_versions():
-        app.add_url_rule('/pedsnet/' + version + '/field-totals',
-                         version + '_' + 'field-totals',
+        app.add_url_rule('/pedsnet/' + version + '/field-totals/',
+                         version + '_field-totals',
                          dqa_resource.serve_field_totals(version),
                          methods=['GET'])
 
-        app.add_url_rule('/pedsnet/' + version + '/site-totals',
-                         version + '_' + 'site-totals',
+        for table in dqa_resource.field_totals[version]:
+            app.add_url_rule('/pedsnet/' + version + '/field-totals/' + table + '/',
+                             version + '_field-totals_' + table,
+                             dqa_resource.serve_field_totals(version, table),
+                             methods=['GET'])
+
+            for field in dqa_resource.field_totals[version][table]:
+                app.add_url_rule(('/pedsnet/' + version + '/field-totals/' +
+                                  table + '/' + field + '/'),
+                                 (version + '_field-totals_' +
+                                  table + '_' + field),
+                                 dqa_resource.serve_field_totals(version, table, field),
+                                 methods=['GET'])
+
+        app.add_url_rule('/pedsnet/' + version + '/site-totals/',
+                         version + '_site-totals',
                          dqa_resource.serve_site_totals(version),
                          methods=['GET'])
 
-        app.add_url_rule('/pedsnet/' + version + '/table-totals',
-                         version + '_' + 'table-totals',
+        for site in dqa_resource.site_totals[version]:
+            app.add_url_rule('/pedsnet/' + version + '/site-totals/' + site + '/',
+                             version + '_site-totals_' + site,
+                             dqa_resource.serve_site_totals(version, site),
+                             methods=['GET'])
+
+        app.add_url_rule('/pedsnet/' + version + '/table-totals/',
+                         version + '_table-totals',
                          dqa_resource.serve_table_totals(version),
                          methods=['GET'])
+
+        for table in dqa_resource.table_totals[version]:
+            app.add_url_rule('/pedsnet/' + version + '/table-totals/' + table + '/',
+                             version + '_table-totals_' + table,
+                             dqa_resource.serve_table_totals(version, table),
+                             methods=['GET'])
 
     app.add_url_rule('/dictionary', 'dictionary', dqa_resource.serve_dict,
                      methods=['GET'])
