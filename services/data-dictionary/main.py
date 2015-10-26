@@ -43,12 +43,12 @@ class DataDictionaryResource():
         try:
             model = self.parse_model()
         except HTTPError:
-            return 503, ''
+            return '', 503
 
         try:
             commit = self.parse_commit()
         except HTTPError:
-            return 503, ''
+            return '', 503
 
         content = json.dumps({
             'commit': commit,
@@ -151,7 +151,10 @@ def index():
         'uuid': SERVICE_ID,
     })
 
-app.add_url_rule('/pcornet/3.0.0',
+# The URL should have a trailing slash. Flask will redirect a
+# request without a trailing slash to the same URL with
+# a trailing slash attached -- but the reverse is not true.
+app.add_url_rule('/pcornet/3.0.0/',
                  'pcornet_v3',
                  pcornet_v3,
                  methods=['GET'])
