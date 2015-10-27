@@ -27,14 +27,17 @@ STATUS_MAP = {'soltution proposed': 'solution proposed',
 
 class Parser():
     def __init__(self, file_obj,
-                 hospital, table,
-                 field_totals, table_totals, site_totals):
+                 site, table,
+                 field_totals, table_totals,
+                 site_table_totals, site_totals, expanded_site_totals):
         self.file_obj = file_obj
-        self.hospital = hospital
+        self.site = site
         self.table = table
         self.field_totals = field_totals
         self.table_totals = table_totals
+        self.site_table_totals = site_table_totals
         self.site_totals = site_totals
+        self.expanded_site_totals = expanded_site_totals
         self.parsed = False
 
     def parse(self):
@@ -64,27 +67,39 @@ class Parser():
             # to ensure consistensy and no typos
 
             site_record = {
-                'site': self.hospital,
+                'site': self.site,
                 'rank': rank
             }
 
-            self.field_totals.setdefault(self.table, {}).\
-                setdefault(field, {}).setdefault(code, {}).\
-                setdefault(status, []).append(site_record)
+            if status not in self.field_totals[self.table][field][code]:
+                self.field_totals[self.table][field][code][status] = [site_record]
+            else:
+                self.field_totals[self.table][field][code][status].append(site_record)
 
             field_record = {
                 'field': field,
                 'rank': rank
             }
 
-            self.table_totals.setdefault(self.table, {}).\
-                setdefault(code, {}).setdefault(status, {}).\
-                setdefault(self.hospital, []).append(field_record)
+            if self.site not in self.table_totals[self.table][code][status]:
+                self.table_totals[self.table][code][status][self.site] = [field_record]
+            else:
+                self.table_totals[self.table][code][status][self.site].append(field_record)
+
+            if status not in self.site_table_totals[self.table][code]:
+                self.site_table_totals[self.table][code][status] = [field_record]
+            else:
+                self.site_table_totals[self.table][code][status].append(field_record)
 
             if status not in self.site_totals:
                 self.site_totals[status] = 1
             else:
                 self.site_totals[status] += 1
+
+            if status not in self.expanded_site_totals[self.table]:
+                self.expanded_site_totals[self.table][status] = 1
+            else:
+                self.expanded_site_totals[self.table][status] += 1
 
     @staticmethod
     def get_version(file_obj):
@@ -105,7 +120,7 @@ class Parser():
 
 
 def main(fileobj):
-    output = Parser(fileobj, 'unknown hospital', 'unknown_table').parse()
+    output = Parser(fileobj, 'unknown site', 'unknown_table').parse()
     json.dump(output, sys.stdout, indent=4, sort_keys=True)
 
 
