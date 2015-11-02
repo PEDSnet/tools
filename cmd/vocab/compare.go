@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/csv"
 	"fmt"
 	"io"
 	"os"
@@ -170,8 +171,40 @@ var compareCmd = &cobra.Command{
 			d.Removed = append(d.Removed, bc)
 		}
 
-		fmt.Printf("%d Added\n", len(d.Added))
-		fmt.Printf("%d Removed\n", len(d.Removed))
-		fmt.Printf("%d Changed\n", len(d.Changed))
+		fmt.Fprintln(os.Stderr, "Summary:")
+		fmt.Fprintf(os.Stderr, "* %d Added\n", len(d.Added))
+		fmt.Fprintf(os.Stderr, "* %d Removed\n", len(d.Removed))
+		fmt.Fprintf(os.Stderr, "* %d Changed\n", len(d.Changed))
+
+		cw := csv.NewWriter(os.Stdout)
+
+		cw.Write([]string{
+			"Concept ID",
+			"Concept Name",
+			"Domain ID",
+			"Vocabulary ID",
+			"Concept Class ID",
+			"Concept Level",
+			"Standard Concept",
+			"Concept Code",
+			"Valid Start Date",
+			"Valid End Date",
+			"Invalid Reason",
+		})
+
+		line := make([]string, 11)
+
+		for _, p := range d.Changed {
+			cw.Write(p[0].Row())
+			cw.Write(p[1].Row())
+			cw.Write(line) // skip a line
+		}
+
+		cw.Flush()
+
+		if err := cw.Error(); err != nil {
+			fmt.Fprintln(os.Stderr, "Error writing output:", err)
+			os.Exit(1)
+		}
 	},
 }
