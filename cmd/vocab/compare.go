@@ -143,7 +143,48 @@ var compareCmd = &cobra.Command{
 		}
 
 		d := Diff{}
+
+		changes := make(chan [2]*Concept, 100)
 		seen := make(map[int]struct{})
+
+		var chg [2]*Concept
+
+		wg.Add(1)
+
+		// Goroutine to write CSV file of changes.
+		go func() {
+			cw := csv.NewWriter(os.Stdout)
+
+			cw.Write([]string{
+				"Concept ID",
+				"Concept Name",
+				"Domain ID",
+				"Vocabulary ID",
+				"Concept Class ID",
+				"Concept Level",
+				"Standard Concept",
+				"Concept Code",
+				"Valid Start Date",
+				"Valid End Date",
+				"Invalid Reason",
+			})
+
+			line := make([]string, 11)
+
+			for p := range changes {
+				cw.Write(p[0].Row())
+				cw.Write(p[1].Row())
+				cw.Write(line) // skip a line
+			}
+
+			cw.Flush()
+
+			if err = cw.Error(); err != nil {
+				fmt.Fprintln(os.Stderr, "Error writing output:", err)
+			}
+
+			wg.Done()
+		}()
 
 		// Iterate over new concepts.
 		for ak, ac := range ia {
@@ -159,9 +200,14 @@ var compareCmd = &cobra.Command{
 
 			// Compare.
 			if !conceptsEqual(ac, bc) {
-				d.Changed = append(d.Changed, [2]*Concept{bc, ac})
+				chg = [2]*Concept{bc, ac}
+				changes <- chg
+				d.Changed = append(d.Changed, chg)
+
 			}
 		}
+
+		close(changes)
 
 		for bk, bc := range ib {
 			if _, ok := seen[bk]; ok {
@@ -176,34 +222,9 @@ var compareCmd = &cobra.Command{
 		fmt.Fprintf(os.Stderr, "* %d Removed\n", len(d.Removed))
 		fmt.Fprintf(os.Stderr, "* %d Changed\n", len(d.Changed))
 
-		cw := csv.NewWriter(os.Stdout)
+		wg.Wait()
 
-		cw.Write([]string{
-			"Concept ID",
-			"Concept Name",
-			"Domain ID",
-			"Vocabulary ID",
-			"Concept Class ID",
-			"Concept Level",
-			"Standard Concept",
-			"Concept Code",
-			"Valid Start Date",
-			"Valid End Date",
-			"Invalid Reason",
-		})
-
-		line := make([]string, 11)
-
-		for _, p := range d.Changed {
-			cw.Write(p[0].Row())
-			cw.Write(p[1].Row())
-			cw.Write(line) // skip a line
-		}
-
-		cw.Flush()
-
-		if err := cw.Error(); err != nil {
-			fmt.Fprintln(os.Stderr, "Error writing output:", err)
+		if err != nil {
 			os.Exit(1)
 		}
 	},
