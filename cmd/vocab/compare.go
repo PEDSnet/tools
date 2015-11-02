@@ -4,10 +4,36 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/spf13/cobra"
 )
+
+var (
+	nonAlphaNum   = regexp.MustCompile(`[^a-zA-Z0-9\s]+`)
+	dupWhitespace = regexp.MustCompile(`\s+`)
+)
+
+func normalizeString(s string) string {
+	s = strings.ToLower(s)
+	s = nonAlphaNum.ReplaceAllString(s, " ")
+	return dupWhitespace.ReplaceAllString(s, " ")
+}
+
+func conceptsEqual(a, b *Concept) bool {
+	// Check for exact match first since this is fastest.
+	if a.ConceptName == b.ConceptName {
+		return true
+	}
+
+	// Do some cleaning.
+	an := normalizeString(a.ConceptName)
+	bn := normalizeString(b.ConceptName)
+
+	return an == bn
+}
 
 type Index map[int]*Concept
 
@@ -131,7 +157,7 @@ var compareCmd = &cobra.Command{
 			}
 
 			// Compare.
-			if ac.ConceptName != bc.ConceptName {
+			if !conceptsEqual(ac, bc) {
 				d.Changed = append(d.Changed, [2]*Concept{bc, ac})
 			}
 		}
