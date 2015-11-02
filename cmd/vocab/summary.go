@@ -109,7 +109,12 @@ var summaryCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		cr := NewConceptReader(f)
+		cr, err := NewConceptReader(f)
+
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Error reading file: %s", err)
+		}
+
 		cr.Comma = detectDelimiter(args[0])
 
 		fmt.Fprintf(os.Stderr, "Detected %q delimiter\n", cr.Comma)

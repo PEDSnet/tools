@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"io"
 	"regexp"
@@ -11,10 +12,29 @@ import (
 )
 
 var (
+	ErrDateFormat = errors.New("could not parse date")
+
 	tsvExt = regexp.MustCompile(`(?i)\.tsv\b`)
 
 	zeroTime = time.Time{}
+
+	dateFormats = []string{
+		"20060102",
+		"2006-01-02",
+	}
 )
+
+func parseDate(s string) (time.Time, error) {
+	for _, l := range dateFormats {
+		t, err := time.Parse(l, s)
+
+		if err != nil {
+			return t, nil
+		}
+	}
+
+	return zeroTime, ErrDateFormat
+}
 
 func detectDelimiter(s string) rune {
 	if tsvExt.MatchString(s) {
@@ -48,18 +68,70 @@ func NewUniversalReader(r io.Reader) *UniversalReader {
 	return &UniversalReader{r}
 }
 
+type Header struct {
+	ConceptID       int
+	ConceptName     int
+	DomainID        int
+	VocabularyID    int
+	ConceptClassID  int
+	StandardConcept int
+	ConceptCode     int
+	ConceptLevel    int
+	ValidStartDate  int
+	ValidEndDate    int
+	InvalidReason   int
+
+	raw []string
+}
+
+func parseHeader(head []string) *Header {
+	h := Header{
+		raw: head,
+	}
+
+	for i, col := range head {
+		switch strings.ToLower(col) {
+		case "concept_id":
+			h.ConceptID = i
+		case "concept_name":
+			h.ConceptName = i
+		case "domain_id":
+			h.DomainID = i
+		case "vocabulary_id":
+			h.VocabularyID = i
+		case "concept_class_id":
+			h.ConceptClassID = i
+		case "standard_concept":
+			h.StandardConcept = i
+		case "concept_code":
+			h.ConceptCode = i
+		case "valid_start_date":
+			h.ValidStartDate = i
+		case "valid_end_date":
+			h.ValidEndDate = i
+		case "invalid_reason":
+			h.InvalidReason = i
+		case "concept_level":
+			h.ConceptLevel = i
+		}
+	}
+
+	return &h
+}
+
 type ConceptReader struct {
 	csv.Reader
 
+	head *Header
 	line int
 }
 
 func (r *ConceptReader) parse(row []string) (*Concept, error) {
-	if len(row) != 10 {
-		return nil, fmt.Errorf("Wrong number of values on line %d. Expected 10 got %d\n%s", r.line+1, len(row), strings.Join(row, ","))
+	if len(row) != len(r.head.raw) {
+		return nil, fmt.Errorf("Wrong number of values on line %d. Expected %d got %d\n%s", len(r.head.raw), r.line+1, len(row), strings.Join(row, ","))
 	}
 
-	id, err := strconv.Atoi(row[0])
+	id, err := strconv.Atoi(row[r.head.ConceptID])
 
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing concept_id: %s", err)
@@ -70,52 +142,43 @@ func (r *ConceptReader) parse(row []string) (*Concept, error) {
 		ed time.Time
 	)
 
-	if row[7] == "" {
+	if row[r.head.ValidStartDate] == "" {
 		sd = zeroTime
 	} else {
-		sd, err = time.Parse("20060102", row[7])
+		sd, err = parseDate(row[r.head.ValidStartDate])
 
 		if err != nil {
-			return nil, fmt.Errorf("Error parsing valid_start_date: %s", err)
+			return nil, fmt.Errorf("Error parsing valid_start_date: %s", row[r.head.ValidStartDate])
 		}
 	}
 
-	if row[8] == "20991231" || row[8] == "" {
+	if row[r.head.ValidEndDate] == "20991231" || row[r.head.ValidEndDate] == "" {
 		ed = zeroTime
 	} else {
-		ed, err = time.Parse("20060102", row[8])
+		ed, err = parseDate(row[r.head.ValidEndDate])
 
 		if err != nil {
-			return nil, fmt.Errorf("Error parsing valid_end_date: %s", err)
+			return nil, fmt.Errorf("Error parsing valid_end_date: %s", row[r.head.ValidEndDate])
 		}
 	}
 
 	c := Concept{
 		ConceptID:       id,
-		ConceptName:     strings.TrimSpace(row[1]),
-		DomainID:        strings.TrimSpace(row[2]),
-		VocabularyID:    strings.TrimSpace(row[3]),
-		ConceptClassID:  strings.TrimSpace(row[4]),
-		StandardConcept: strings.TrimSpace(row[5]),
-		ConceptCode:     strings.TrimSpace(row[6]),
+		ConceptName:     strings.TrimSpace(row[r.head.ConceptName]),
+		DomainID:        strings.TrimSpace(row[r.head.DomainID]),
+		VocabularyID:    strings.TrimSpace(row[r.head.VocabularyID]),
+		ConceptClassID:  strings.TrimSpace(row[r.head.ConceptClassID]),
+		StandardConcept: strings.TrimSpace(row[r.head.StandardConcept]),
+		ConceptCode:     strings.TrimSpace(row[r.head.ConceptCode]),
 		ValidStartDate:  sd,
 		ValidEndDate:    ed,
-		InvalidReason:   strings.TrimSpace(row[9]),
+		InvalidReason:   strings.TrimSpace(row[r.head.InvalidReason]),
 	}
 
 	return &c, nil
 }
 
 func (r *ConceptReader) Read() (*Concept, error) {
-	// Read the header.
-	if r.line == 0 {
-		_, err := r.Reader.Read()
-
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	row, err := r.Reader.Read()
 
 	// End of file.
@@ -137,7 +200,7 @@ func (r *ConceptReader) Read() (*Concept, error) {
 	return r.parse(row)
 }
 
-func NewConceptReader(r io.Reader) *ConceptReader {
+func NewConceptReader(r io.Reader) (*ConceptReader, error) {
 	cr := ConceptReader{
 		Reader: *csv.NewReader(NewUniversalReader(r)),
 	}
@@ -147,5 +210,15 @@ func NewConceptReader(r io.Reader) *ConceptReader {
 	cr.TrimLeadingSpace = true
 	cr.FieldsPerRecord = -1
 
-	return &cr
+	// Read the header.
+	head, err := cr.Reader.Read()
+
+	if err != nil {
+		return nil, err
+	}
+
+	cr.line++
+	cr.head = parseHeader(head)
+
+	return &cr, nil
 }

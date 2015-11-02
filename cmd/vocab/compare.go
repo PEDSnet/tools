@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync"
 
 	"github.com/spf13/cobra"
 )
@@ -65,19 +66,53 @@ var compareCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		rb := NewConceptReader(fb)
-		ra := NewConceptReader(fa)
-
-		ia, err := GenerateIndex(ra)
+		rb, err := NewConceptReader(fb)
 
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error indexing: %s", err)
+			fmt.Fprintln(os.Stderr, "Error reading file:", err)
+			os.Exit(1)
 		}
 
-		ib, err := GenerateIndex(rb)
+		ra, err := NewConceptReader(fa)
 
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error indexing: %s", err)
+			fmt.Fprintln(os.Stderr, "Error reading file:", err)
+			os.Exit(1)
+		}
+
+		var (
+			ia, ib     Index
+			aerr, berr error
+		)
+
+		// Parallelize index building.
+		wg := &sync.WaitGroup{}
+		wg.Add(2)
+
+		go func() {
+			ia, aerr = GenerateIndex(ra)
+
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error indexing %s\n%s\n", fa.Name(), err)
+			}
+
+			wg.Done()
+		}()
+
+		go func() {
+			ib, berr = GenerateIndex(rb)
+
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error indexing %s\n%s\n", fb.Name(), err)
+			}
+
+			wg.Done()
+		}()
+
+		wg.Wait()
+
+		if aerr != nil || berr != nil {
+			os.Exit(1)
 		}
 
 		d := Diff{}
