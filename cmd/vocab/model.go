@@ -8,6 +8,7 @@ type Concept struct {
 	DomainID        string
 	VocabularyID    string
 	ConceptClassID  string
+	ConceptLevel    string
 	StandardConcept string
 	ConceptCode     string
 	ValidStartDate  time.Time
