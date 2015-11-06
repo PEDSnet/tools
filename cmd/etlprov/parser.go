@@ -23,6 +23,9 @@ const (
 	SourcesFile  = "sources.csv"
 )
 
+// Regex for splitting entity list strings.
+var entitySplitter = regexp.MustCompile(`[,\s+]`)
+
 // Regex for a step range, taking the form "N-M".
 var stepRange = regexp.MustCompile(`(\d+)\s*-\s*(\d+)`)
 
@@ -306,7 +309,7 @@ func (p *Parser) parseEntityString(s string) ([]*Entity, error) {
 		entities []*Entity
 	)
 
-	for _, name := range strings.Split(strings.ToLower(s), TokenDelim) {
+	for _, name := range entitySplitter.Split(strings.ToLower(s), -1) {
 		if name == "all" || name == "" {
 			var i int
 			entities = make([]*Entity, len(p.entities))
