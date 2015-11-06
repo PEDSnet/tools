@@ -32,6 +32,16 @@ func (c *ureader) Read(buf []byte) (int, error) {
 	return n, err
 }
 
+func isEmpty(r []string) bool {
+	for _, s := range r {
+		if s != "" {
+			return false
+		}
+	}
+
+	return true
+}
+
 // ReadRows reads rows from an io.Reader and processes each with the function.
 func ReadRows(r io.Reader, f func([]string)) error {
 	cr := csv.NewReader(&ureader{r})
@@ -61,6 +71,10 @@ func ReadRows(r io.Reader, f func([]string)) error {
 
 		// In-place
 		trimSpace(row)
+
+		if isEmpty(row) {
+			continue
+		}
 
 		f(row)
 	}
