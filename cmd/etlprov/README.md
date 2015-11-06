@@ -3,8 +3,17 @@
 ## Usage
 
 ```bash
-$ pedsnet-etlprov [-model <model>] [-version <version>] [-service <service>] <dir>
+$ pedsnet-etlprov [-model <model>] [-version <version>] [-truncate=false] [-ignore <entities>] [-service <service>] [-v] <dir>
 ```
+
+Option | Description
+---|---
+-model <model> | Specify a data model other than 'pedsnet', e.g. 'i2b2_pedsnet'
+-version <version> | Specify PEDSnet CDM version, e.g. 2.0.0 or 2.1.0
+-truncate=false | Show all errors, even redundant or excessive ones
+-service <service> | Specify model service other than http://data-models.origins.link (not useful unless you run your own model service)
+-ignore <entities> | Ignore a comma-separated list of entities (not normally used)
+-v | Show the version of this tool
 
 
 ### Example
