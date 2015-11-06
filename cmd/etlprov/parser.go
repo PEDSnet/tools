@@ -70,18 +70,19 @@ func (p *Parser) parseTool(record []string) (*Tool, error) {
 		return nil, fmt.Errorf("Tool name required")
 	}
 
-	steps, err := p.parseStepString(record[1])
-
-	if err != nil {
-		return nil, err
-	}
-
 	t := &Tool{
 		Name:    record[0],
-		Steps:   steps,
 		Usage:   record[2],
 		Version: record[3],
 	}
+
+	steps, err := p.parseStepString(record[1])
+
+	if err != nil {
+		return t, err
+	}
+
+	t.Steps = steps
 
 	return t, nil
 }
@@ -207,18 +208,19 @@ func (p *Parser) parseSource(record []string) (*Source, error) {
 		return nil, fmt.Errorf("Source name required")
 	}
 
-	steps, err := p.parseStepString(record[1])
-
-	if err != nil {
-		return nil, err
-	}
-
 	s := &Source{
 		Name:    record[0],
-		Steps:   steps,
 		Usage:   record[2],
 		Version: record[3],
 	}
+
+	steps, err := p.parseStepString(record[1])
+
+	if err != nil {
+		return s, err
+	}
+
+	s.Steps = steps
 
 	return s, nil
 }
@@ -229,37 +231,41 @@ func (p *Parser) parsePerson(record []string) (*Person, error) {
 		return nil, fmt.Errorf("Person name required")
 	}
 
-	steps, err := p.parseStepString(record[3])
-
-	if err != nil {
-		return nil, err
-	}
-
 	b := &Person{
 		Name:  record[0],
 		Email: record[1],
 		Role:  record[2],
-		Steps: steps,
 	}
+
+	steps, err := p.parseStepString(record[3])
+
+	if err != nil {
+		return b, err
+	}
+
+	b.Steps = steps
 
 	return b, nil
 }
 
 func (p *Parser) parseEntity(record []string) (*Entity, error) {
-	e := &Entity{}
-
 	name, err := p.validateEntityName(record[0])
 
 	if err != nil {
 		return nil, err
 	}
 
-	e.Name = name
+	e := &Entity{
+		Name:       name,
+		Comment:    record[3],
+		Truncation: record[4],
+		Limit:      record[5],
+	}
 
 	avail, err := parseAvailability(record[1])
 
 	if err != nil {
-		return nil, err
+		return e, err
 	}
 
 	e.Availability = avail
@@ -267,13 +273,10 @@ func (p *Parser) parseEntity(record []string) (*Entity, error) {
 	trans, err := parseTransmitting(record[2])
 
 	if err != nil {
-		return nil, err
+		return e, err
 	}
 
 	e.Transmitting = trans
-	e.Comment = record[3]
-	e.Truncation = record[4]
-	e.Limit = record[5]
 
 	return e, nil
 }
@@ -377,16 +380,17 @@ func (p *Parser) ReadEntities(r io.Reader) []error {
 
 		if err != nil {
 			errs = append(errs, err)
-			return
 		}
 
-		if _, ok := p.entities[e.Name]; ok {
-			err = fmt.Errorf("Duplicate entity '%s' found", e.Name)
-			errs = append(errs, err)
-			return
-		}
+		if e != nil {
+			if _, ok := p.entities[e.Name]; ok {
+				err = fmt.Errorf("Duplicate entity '%s' found", e.Name)
+				errs = append(errs, err)
+				return
+			}
 
-		p.entities[e.Name] = e
+			p.entities[e.Name] = e
+		}
 	})
 
 	// Error returned while reading.
@@ -443,16 +447,17 @@ func (p *Parser) ReadTools(r io.Reader) []error {
 
 		if err != nil {
 			errs = append(errs, err)
-			return
 		}
 
-		if _, ok := p.tools[t.Name]; ok {
-			err = fmt.Errorf("Duplicate tool '%s', found", t.Name)
-			errs = append(errs, err)
-			return
-		}
+		if t != nil {
+			if _, ok := p.tools[t.Name]; ok {
+				err = fmt.Errorf("Duplicate tool '%s', found", t.Name)
+				errs = append(errs, err)
+				return
+			}
 
-		p.tools[t.Name] = t
+			p.tools[t.Name] = t
+		}
 	})
 
 	// Error returned while reading.
@@ -478,13 +483,15 @@ func (p *Parser) ReadSources(r io.Reader) []error {
 			return
 		}
 
-		if _, ok := p.sources[s.Name]; ok {
-			err = fmt.Errorf("Duplicate source '%s', found", s.Name)
-			errs = append(errs, err)
-			return
-		}
+		if s != nil {
+			if _, ok := p.sources[s.Name]; ok {
+				err = fmt.Errorf("Duplicate source '%s', found", s.Name)
+				errs = append(errs, err)
+				return
+			}
 
-		p.sources[s.Name] = s
+			p.sources[s.Name] = s
+		}
 	})
 
 	// Error returned while reading.
@@ -510,13 +517,15 @@ func (p *Parser) ReadPeople(r io.Reader) []error {
 			return
 		}
 
-		if _, ok := p.people[v.Name]; ok {
-			err = fmt.Errorf("Duplicate step '%v', found", v.Name)
-			errs = append(errs, err)
-			return
-		}
+		if v != nil {
+			if _, ok := p.people[v.Name]; ok {
+				err = fmt.Errorf("Duplicate step '%v', found", v.Name)
+				errs = append(errs, err)
+				return
+			}
 
-		p.people[v.Name] = v
+			p.people[v.Name] = v
+		}
 	})
 
 	// Error returned while reading.
