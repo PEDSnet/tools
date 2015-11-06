@@ -139,7 +139,7 @@ func main() {
 			errs[i] = fmt.Errorf(n)
 		}
 
-		printErrors(os.Stderr, errs, 10)
+		printErrors(os.Stderr, errs, limit)
 	}
 
 	entities := p.EntitiesWithoutSteps()
@@ -159,7 +159,7 @@ func main() {
 			errs[i] = fmt.Errorf(e.Name)
 		}
 
-		printErrors(os.Stderr, errs, 10)
+		printErrors(os.Stderr, errs, limit)
 	}
 
 	fmt.Println("---")
