@@ -169,19 +169,21 @@ func (p *Parser) parseStep(record []string) (*Step, error) {
 		return nil, err
 	}
 
+	s := &Step{
+		ID:          id,
+		Time:        record[4],
+		Entities:    nil,
+		Description: record[1],
+	}
+
 	// Parse the entities the step applies to.
 	entities, err := p.parseEntityString(record[2])
 
 	if err != nil {
-		return nil, err
+		return s, err
 	}
 
-	s := &Step{
-		ID:          id,
-		Time:        record[4],
-		Entities:    entities,
-		Description: record[1],
-	}
+	s.Entities = entities
 
 	// Special case of returning the step wit the error to
 	// prevent cascading errors.
