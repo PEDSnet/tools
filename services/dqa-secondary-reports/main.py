@@ -34,6 +34,7 @@ class DQAResource():
         self.site_table_totals = rdict()
         self.site_totals = rdict()
         self.expanded_site_totals = rdict()
+        self.site_list = rdict()
         self.dictionary = {}
 
         self.dir_name = dir_name
@@ -45,6 +46,7 @@ class DQAResource():
         self.site_table_totals = rdict()
         self.site_totals = rdict()
         self.expanded_site_totals = rdict()
+        self.site_list = rdict()
 
         dir_name = self.dir_name + '/SecondaryReports/'
 
@@ -76,8 +78,6 @@ class DQAResource():
                     if site in self.site_totals[version]:
                         continue
 
-                    self.site_totals[version][site] = {}
-
                     for file_name in file_names:
                         table = file_name.split('.csv')[0]
                         buff = codecs.open(
@@ -90,6 +90,18 @@ class DQAResource():
                                    self.site_totals[version][site],
                                    self.expanded_site_totals[version][site])
                         p.parse()
+
+                        if table in self.site_table_totals[version][site]:
+                            if table not in self.site_list[version]:
+                                self.site_list[version][table] = [site]
+                            else:
+                                self.site_list[version][table].append(site)
+
+        for version in self.site_totals:
+            self.site_list[version]['all'] = []
+
+            for site in self.site_totals[version]:
+                self.site_list[version]['all'].append(site)
 
         # if a site has no issues with a certain status,
         # add a corresponding entry and set it to 0.
@@ -109,7 +121,6 @@ class DQAResource():
                     for table in self.expanded_site_totals[version][site]:
                         if status not in self.expanded_site_totals[version][site][table]:
                             self.expanded_site_totals[version][site][table][status] = 0
-
 
     def process_dictionary(self):
         path = self.dir_name + '/Dictionary/DCC_DQA_Dictionary.csv'
@@ -194,6 +205,22 @@ class DQAResource():
                 info = self.table_totals[version]
             else:
                 info = self.table_totals[version][table]
+
+            return wrap_response(info)
+
+        return versioned_data
+
+    def serve_site_list(self, version, table=None):
+        """
+        Entrypoint for Flask routing that provides a list of sites that have
+        an outstanding issue against the given table in a given version of the
+        PEDSnet data model.
+        """
+        def versioned_data():
+            if table is None:
+                info = self.site_list[version]['all']
+            else:
+                info = self.site_list[version][table]
 
             return wrap_response(info)
 
@@ -340,6 +367,14 @@ if __name__ == '__main__':
                          dqa_resource.serve_site_totals(version),
                          methods=['GET'])
 
+        urlf = '/pedsnet/{version}/site-list/'
+        namef = '{version}_site_list'
+
+        app.add_url_rule(urlf.format(version=version),
+                         namef.format(version=version),
+                         dqa_resource.serve_site_list(version),
+                         methods=['GET'])
+
         urlf = '/pedsnet/{version}/site-totals/{site}/'
         namef = '{version}_site-totals_{site}'
 
@@ -366,6 +401,15 @@ if __name__ == '__main__':
                              dqa_resource.serve_table_totals(version, table),
                              methods=['GET'])
 
+        urlf = '/pedsnet/{version}/site-list/{table}/'
+        namef = '{version}_site_list_{table}'
+
+        for table in dqa_resource.table_totals[version]:
+            app.add_url_rule(urlf.format(version=version, table=table),
+                             namef.format(version=version, table=table),
+                             dqa_resource.serve_site_list(version, table),
+                             methods=['GET'])
+
         urlf = '/pedsnet/{version}/table-totals/{table}/{site}/'
         namef = '{version}_table-totals_{table}_{site}'
 
@@ -376,7 +420,7 @@ if __name__ == '__main__':
                                  dqa_resource.serve_site_table_totals(version, table, site),
                                  methods=['GET'])
 
-    app.add_url_rule('/dictionary', 'dictionary', dqa_resource.serve_dict,
+    app.add_url_rule('/dictionary/', 'dictionary', dqa_resource.serve_dict,
                      methods=['GET'])
 
     try:
