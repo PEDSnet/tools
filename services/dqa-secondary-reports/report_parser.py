@@ -4,8 +4,8 @@
 
 import csv
 import json
-import sys
 import logging
+import sys
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -55,7 +55,11 @@ class Parser():
 
             field = rec[5].strip().lower()
             code = rec[7].strip().upper()
+            finding = rec[9].strip()
+            prevalence = rec[10].strip().lower() or 'not specified'
             rank = rec[11].strip().lower()
+            response = rec[12].strip()
+            cause = rec[13].strip()
             status = rec[14].strip().lower() or 'not specified'
 
             if status in STATUS_MAP:
@@ -66,20 +70,24 @@ class Parser():
             # Data-Quality/Dictionary/DCC_DQA_Dictionary.csv
             # to ensure consistensy and no typos
 
-            site_record = {
-                'site': self.site,
-                'rank': rank
+            record = {
+                'finding': finding,
+                'prevalence': prevalence,
+                'rank': rank,
+                'response': response,
+                'cause': cause
             }
+
+            site_record = record.copy()
+            site_record['site'] = self.site
 
             if status not in self.field_totals[self.table][field][code]:
                 self.field_totals[self.table][field][code][status] = [site_record]
             else:
                 self.field_totals[self.table][field][code][status].append(site_record)
 
-            field_record = {
-                'field': field,
-                'rank': rank
-            }
+            field_record = record.copy()
+            field_record['field'] = field
 
             if self.site not in self.table_totals[self.table][code][status]:
                 self.table_totals[self.table][code][status][self.site] = [field_record]
