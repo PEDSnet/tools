@@ -15,3 +15,4 @@ Download the latest release for each program on the [releases page](https://gith
 
 - [ETL Conventions Service](https://github.com/PEDSnet/tools/tree/master/services/etl)
 - [Annotated Data Dictionary Service](https://github.com/PEDSnet/tools/tree/master/services/data-dictionary)
+- [DQA Secondary Reports Service](https://github.com/PEDSnet/tools/tree/master/services/dqa-secondary-reports)
