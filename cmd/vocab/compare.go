@@ -82,28 +82,28 @@ var compareCmd = &cobra.Command{
 		fb, err := os.Open(args[0])
 
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
+			cmd.Println(err)
 			os.Exit(1)
 		}
 
 		fa, err := os.Open(args[1])
 
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
+			cmd.Println(err)
 			os.Exit(1)
 		}
 
 		rb, err := NewConceptReader(fb)
 
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error reading file:", err)
+			cmd.Println("Error reading file:", err)
 			os.Exit(1)
 		}
 
 		ra, err := NewConceptReader(fa)
 
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error reading file:", err)
+			cmd.Println("Error reading file:", err)
 			os.Exit(1)
 		}
 
@@ -119,8 +119,8 @@ var compareCmd = &cobra.Command{
 		go func() {
 			ia, aerr = GenerateIndex(ra)
 
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error indexing %s\n%s\n", fa.Name(), err)
+			if aerr != nil {
+				cmd.Printf("Error indexing %s\n%s\n", fa.Name(), aerr)
 			}
 
 			wg.Done()
@@ -129,8 +129,8 @@ var compareCmd = &cobra.Command{
 		go func() {
 			ib, berr = GenerateIndex(rb)
 
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error indexing %s\n%s\n", fb.Name(), err)
+			if berr != nil {
+				cmd.Printf("Error indexing %s\n%s\n", fb.Name(), berr)
 			}
 
 			wg.Done()
@@ -180,7 +180,7 @@ var compareCmd = &cobra.Command{
 			cw.Flush()
 
 			if err = cw.Error(); err != nil {
-				fmt.Fprintln(os.Stderr, "Error writing output:", err)
+				cmd.Println("Error writing output:", err)
 			}
 
 			wg.Done()
@@ -217,10 +217,10 @@ var compareCmd = &cobra.Command{
 			d.Removed = append(d.Removed, bc)
 		}
 
-		fmt.Fprintln(os.Stderr, "Summary:")
-		fmt.Fprintf(os.Stderr, "* %d Added\n", len(d.Added))
-		fmt.Fprintf(os.Stderr, "* %d Removed\n", len(d.Removed))
-		fmt.Fprintf(os.Stderr, "* %d Changed\n", len(d.Changed))
+		cmd.Println("Summary:")
+		cmd.Printf("* %d Added\n", len(d.Added))
+		cmd.Printf("* %d Removed\n", len(d.Removed))
+		cmd.Printf("* %d Changed\n", len(d.Changed))
 
 		wg.Wait()
 
