@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var (
@@ -145,46 +146,49 @@ var compareCmd = &cobra.Command{
 		d := Diff{}
 
 		changes := make(chan [2]*Concept, 100)
+		output := !viper.GetBool("compare.quiet")
 		seen := make(map[int]struct{})
 
+		if output {
+			wg.Add(1)
+
+			// Goroutine to write CSV file of changes.
+			go func() {
+				cw := csv.NewWriter(os.Stdout)
+
+				cw.Write([]string{
+					"Concept ID",
+					"Concept Name",
+					"Domain ID",
+					"Vocabulary ID",
+					"Concept Class ID",
+					"Concept Level",
+					"Standard Concept",
+					"Concept Code",
+					"Valid Start Date",
+					"Valid End Date",
+					"Invalid Reason",
+				})
+
+				line := make([]string, 11)
+
+				for p := range changes {
+					cw.Write(p[0].Row())
+					cw.Write(p[1].Row())
+					cw.Write(line) // skip a line
+				}
+
+				cw.Flush()
+
+				if err = cw.Error(); err != nil {
+					cmd.Println("Error writing output:", err)
+				}
+
+				wg.Done()
+			}()
+		}
+
 		var chg [2]*Concept
-
-		wg.Add(1)
-
-		// Goroutine to write CSV file of changes.
-		go func() {
-			cw := csv.NewWriter(os.Stdout)
-
-			cw.Write([]string{
-				"Concept ID",
-				"Concept Name",
-				"Domain ID",
-				"Vocabulary ID",
-				"Concept Class ID",
-				"Concept Level",
-				"Standard Concept",
-				"Concept Code",
-				"Valid Start Date",
-				"Valid End Date",
-				"Invalid Reason",
-			})
-
-			line := make([]string, 11)
-
-			for p := range changes {
-				cw.Write(p[0].Row())
-				cw.Write(p[1].Row())
-				cw.Write(line) // skip a line
-			}
-
-			cw.Flush()
-
-			if err = cw.Error(); err != nil {
-				cmd.Println("Error writing output:", err)
-			}
-
-			wg.Done()
-		}()
 
 		// Iterate over new concepts.
 		for ak, ac := range ia {
@@ -201,9 +205,11 @@ var compareCmd = &cobra.Command{
 			// Compare.
 			if !conceptsEqual(ac, bc) {
 				chg = [2]*Concept{bc, ac}
-				changes <- chg
 				d.Changed = append(d.Changed, chg)
 
+				if output {
+					changes <- chg
+				}
 			}
 		}
 
@@ -228,4 +234,12 @@ var compareCmd = &cobra.Command{
 			os.Exit(1)
 		}
 	},
+}
+
+func init() {
+	flags := compareCmd.Flags()
+
+	flags.Bool("quiet", false, "Only print the summary of the changes, not the changes.")
+
+	viper.BindPFlag("compare.quiet", flags.Lookup("quiet"))
 }
