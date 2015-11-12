@@ -20,7 +20,7 @@ from version import __version__
 # Token for GitHub authorization. Set on startup.
 GITHUB_AUTH_TOKEN = None
 
-DIR_NAME = 'dqa_repo'
+REPO_DIR = 'dqa_repo'
 REMOTE_URL = 'github.com/PEDSnet/Data-Quality.git'
 
 # Recursive nested dict structure.
@@ -259,16 +259,21 @@ def wrap_response(info):
 if __name__ == '__main__':
     usage = """PEDSnet DQA Secondary Reports Service
 
-    Usage: main.py [--token=<token>] [--host=<host>] [--port=<port>] [--debug] [--interval=<interval>]
+    Usage: main.py [--debug]
+                   [--host=<host>] [--port=<port>]
+                   [--token=<token>]
+                   [--interval=<interval>]
+                   [--repo-dir=<repo-dir>]
 
     Options:
-        --help              Display the help.
-        --token=<token>     GitHub authorization token.
-        --host=<host>       Host of the service.
-        --port=<port>       Port of the service [default: 5000].
-        --debug             Enable debug output.
+        --help                  Display the help.
+        --debug                 Enable debug output.
+        --host=<host>           Host of the service.
+        --port=<port>           Port of the service [default: 5000].
+        --token=<token>         GitHub authorization token.
         --interval=<interval>   Time interval, in minutes, to periodically check the repo for updates [default: 30]
-    """
+        --repo-dir=<repo-dir>   Directory of the repo on disk.
+    """  # noqa
 
     from docopt import docopt
 
@@ -289,10 +294,17 @@ if __name__ == '__main__':
         print('Authorization token required.')
         sys.exit(1)
 
+    if opts['--repo-dir']:
+        repo_dir = opts['--repo-dir']
+    elif 'REPO_DIR' in os.environ:
+        repo_dir = os.environ['REPO_DIR']
+    else:
+        repo_dir = REPO_DIR
+
     if debug:
         logger.setLevel(logging.DEBUG)
 
-    dqa_resource = DQAResource(DIR_NAME)
+    dqa_resource = DQAResource(repo_dir)
 
     # Do the initial fetch of the repository.
     dqa_resource.update()
