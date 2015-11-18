@@ -30,6 +30,7 @@ var versionCmd = &cobra.Command{
 func main() {
 	mainCmd.AddCommand(versionCmd)
 	mainCmd.AddCommand(generateCmd)
+	mainCmd.AddCommand(validateCmd)
 	mainCmd.AddCommand(feedbackCmd)
 	mainCmd.AddCommand(rankIssuesCmd)
 	mainCmd.AddCommand(queryCmd)
