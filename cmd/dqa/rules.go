@@ -335,13 +335,7 @@ func (p *RulesParser) parsePrevalence(v string) ([]string, error) {
 	}
 
 	if v == "in (*)" {
-		return []string{
-			"full",
-			"high",
-			"medium",
-			"low",
-			"unknown",
-		}, nil
+		return Prevalences, nil
 	}
 
 	return p.parseInSet(v)

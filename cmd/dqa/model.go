@@ -40,6 +40,40 @@ var Goals = []string{
 	"Feasibility",
 }
 
+// Prevalences are the set valid prevalence values.
+var Prevalences = []string{
+	"full",
+	"high",
+	"medium",
+	"low",
+	"unknown",
+}
+
+// Statuses are the set of valid issue statuses.
+var Statuses = []string{
+	"new",
+	"withdrawn",
+	"persistent",
+	"under review",
+	"solution proposed",
+}
+
+// Causes are teh set of valid issue causes.
+var Causes = []string{
+	"ETL: programming error",
+	"ETL: unclear conventions",
+	"ETL: administrative",
+	"Provenance: missing in source",
+	"Provenance: entry error or convention",
+	"Provenance: site-specific ETL convention",
+	"Provenance: new clinical workflow",
+	"Provenance: true anomaly",
+	"Provenance: EHR configuration",
+	"Provenance: administrative workflow",
+	"i2b2 transform",
+	"Non-issue",
+}
+
 // ExcludedTables are a set of tables excluded from analysis.
 var ExcludedTables = map[string]struct{}{
 	"concept":               struct{}{},
@@ -183,6 +217,8 @@ type Result struct {
 	Cause            string
 	Status           string
 	Reviewer         string
+
+	rank string
 }
 
 func (r *Result) Row() []string {

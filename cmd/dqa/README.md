@@ -109,3 +109,36 @@ $ pedsnet-dqa query - ./ETLv1 ./ETLv2 ./ETLv3 ./ETLv4 < persistent_fields.sql
 | visit_occurrence     | visit_start_date       | 2        |
 +----------------------+------------------------+----------+
 ```
+
+## Validate Results
+
+Checks the values in the DQA result files to be consistent. The validator checks the:
+
+- `model version` is a valid semantic version.
+- `goal` is one of the pre-defined choices.
+- `prevalence` is one of the pre-defined choices.
+- `rank` is one of the pre-defined choices.
+- `cause` is one of the pre-defined choices.
+- `status` is one of the pre-defined choices.
+
+The set of *pre-defined choices* for each field are defined in the [SecondaryReports](https://github.com/PEDSnet/Data-Quality/tree/master/SecondaryReports#format-for-secondary-reports) repository.
+
+The command can take one or more directories that contain the report files. For example, the following will evaluate all ETL versions for the CHOP site.
+
+```
+$ pedsnet-dqa validate ./CHOP/*
+```
+
+A recommended workflow is to produce a report for all sites and pipe it to `more` so the results can be paged through incrementally as the issues are fixed.
+
+```
+$ pedsnet-dqa validate \
+    Boston/* \
+    CCHMC/* \
+    CHOP/* \
+    Colorado/* \
+    Nationwide/* \
+    Nemours/* \
+    Seattle/* \
+    StLouis/* | more
+```

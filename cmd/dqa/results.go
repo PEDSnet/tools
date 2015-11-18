@@ -405,6 +405,7 @@ func (r *ResultsReader) ReadResult() (*Result, error) {
 		Finding:          row[r.Head.Finding],
 		Prevalence:       row[r.Head.Prevalence],
 		Rank:             rank,
+		rank:             row[r.Head.Rank],
 		SiteResponse:     row[r.Head.SiteResponse],
 		Cause:            row[r.Head.Cause],
 		Status:           row[r.Head.Status],
