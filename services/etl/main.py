@@ -281,7 +281,8 @@ pedsnet = Resource(
         ), versions={
             '1.0.0': 'ad18c4ea1e227bbccf3fbc0a5ae05b1f552af95d',
             '2.0.0': '530d08afdff1542fcbc9042794a90e9e444541c7',
-            '2.1.0': 'master',
+            '2.1.0': 'ed80cfd20fca8e2c3495cbd0b2971c1d713f6be6',
+            '2.2.0': 'master',
         })
 
 i2b2 = Resource(
