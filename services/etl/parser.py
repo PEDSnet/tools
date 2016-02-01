@@ -7,15 +7,15 @@ import re
 import sys
 from logger import logger
 
-title_re = re.compile(r'^\#[^\#]+')
-table_name_re = re.compile(r'^\#\#\s*\d+\.\d+(?P<name>[ \w]*)')
+title_re = re.compile(r'^\#[^\#]+', re.I)
+table_name_re = re.compile(r'^\#\#\s*\d+\.\d+(?P<name>[ \w]*)', re.I)
 
 
 class TableParser():
     def __init__(self, name, header_pattern, field_pattern):
         self.name = name
-        self.header_re = re.compile(header_pattern)
-        self.field_re = re.compile(field_pattern, re.X)
+        self.header_re = re.compile(header_pattern, re.I)
+        self.field_re = re.compile(field_pattern, re.X | re.I)
 
     def __repr__(self):
         return '<TableParser: {}>'.format(self.name)
@@ -45,9 +45,9 @@ class TableParser():
 
 table_parsers = (
     TableParser(
-        'v1',
-        r'^Field\s*\|\s*Required',
-        r'''^
+        name='v1',
+        header_pattern=r'^field\s*\|\s*required',
+        field_pattern=r'''^
             (?P<name>[^\|]+)      # name of the field
             \|(?P<req>[^\|]+)     # network required
             \|(?P<type>[^\|]+)    # data type
@@ -56,9 +56,9 @@ table_parsers = (
         '''),
 
     TableParser(
-        'v2',
-        r'^Field\s*\|\s*Foreign Key',
-        r'''^
+        name='v2',
+        header_pattern=r'^field\s*\|\s*(foreign key/|not null)',
+        field_pattern=r'''^
             (?P<name>[^\|]+)      # name of the field
             \|(?P<fk>[^\|]+)      # foreign key constraint
             \|(?P<req>[^\|]+)     # network required
