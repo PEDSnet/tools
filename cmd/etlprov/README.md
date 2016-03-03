@@ -1,5 +1,9 @@
 # PEDSnet ETL Provenance Validator
 
+## Download
+
+Download the latest release on the [releases page](https://github.com/PEDSnet/tools/releases).
+
 ## Usage
 
 ```bash
@@ -8,38 +12,32 @@ $ pedsnet-etlprov [-model <model>] [-version <version>] [-truncate=false] [-igno
 
 Option | Description
 ---|---
--model <model> | Specify a data model other than 'pedsnet', e.g. 'i2b2_pedsnet'
--version <version> | Specify PEDSnet CDM version, e.g. 2.0.0 or 2.1.0
+-model <model> | Specify a data model other than the default of 'pedsnet', e.g. 'i2b2_pedsnet'
+-version <version> | Specify a model version other than the default of '2.0.0', e.g. 2.1.0 or 2.2.0
 -truncate=false | Show all errors, even redundant or excessive ones
--service <service> | Specify model service other than http://data-models.origins.link (not useful unless you run your own model service)
+-service <service> | Specify a model service other than http://data-models.origins.link (not useful unless you run your own model service)
 -ignore <entities> | Ignore a comma-separated list of entities (not normally used)
 -v | Show the version of this tool
-
 
 ### Example
 
 ```bash
-$ pedsnet-etlprov -model i2b2_pedsnet -version 2.0.0 ./files
-Validating against model 'i2b2_pedsnet/2.0.0'
-Scanning files in '/path/to/files/'
+$ pedsnet-etlprov -version 2.1.0 -truncate=false
+Validating against model 'pedsnet/2.1.0'
+Scanning files in '.'
 ---
-8 errors have been detected for 'steps.csv'
-* Error parsing previous step 'none'
-* Entity 'patient_dimension.gestational_age_num' not defined
-* Entity 'patient_dimension.gestational_age_num' not defined
-* Entity 'visit_dimension.admit_src_destcd' not defined
-* Entity 'patient_dimension.gestational_age_num' not defined
-* Entity 'visit_dimension.admit_src_destcd' not defined
-* Entity 'provider_dimension' not defined
-* Step 70 does not exist
+1 error has been detected for 'steps.csv'
+* Step 0 does not exist
 ---
-2 entities are missing from the model
-* provider_dimension.provider_id
-* provider_dimension.provider_path
+1 error has been detected for 'tools.csv'
+* High step in range not defined 55
 ---
-95 entities
-18 steps
-10 tools
-2 sources
+1 entity does not have steps
+* observation_period
+---
+197 entities
+49 steps
+0 tools
+3 sources
 3 persons
 ```
