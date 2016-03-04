@@ -35,7 +35,7 @@ func main() {
 	)
 
 	flag.StringVar(&model, "model", "pedsnet", "Name of the data model to validate against.")
-	flag.StringVar(&version, "version", "2.0.0", "Version of the data model to validate against.")
+	flag.StringVar(&version, "version", "", "Version of the data model to validate against.")
 	flag.StringVar(&service, "service", "http://data-models.origins.link", "URL to the data models service.")
 	flag.StringVar(&ignore, "ignore", "", "Comma-separated list of entities to ignore.")
 	flag.BoolVar(&truncate, "truncate", true, "Truncate the list of errors.")
