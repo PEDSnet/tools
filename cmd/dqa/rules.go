@@ -54,8 +54,9 @@ func fetchRules(name, path string, token string, model *dms.Model) (*RuleSet, er
 	}
 
 	return &RuleSet{
-		Name:  name,
-		Rules: rules,
+		Name:   name,
+		Parser: p,
+		Rules:  rules,
 	}, nil
 }
 
@@ -194,8 +195,9 @@ func isOther(r *Result) bool {
 }
 
 type RuleSet struct {
-	Name  string
-	Rules []*Rule
+	Name   string
+	Parser *RulesParser
+	Rules  []*Rule
 }
 
 func (rs *RuleSet) String() string {
@@ -243,23 +245,25 @@ var (
 	}
 )
 
-type RulesParseError struct {
+type RuleParseError struct {
 	line int
 	err  error
 }
 
-func (e *RulesParseError) Error() string {
-	return fmt.Sprintf("error parsing rules on line %d: %s", e.line, e.err)
+func (e *RuleParseError) Error() string {
+	return fmt.Sprintf("line %d: %s", e.line, e.err)
 }
 
-func NewRulesParseError(line int, err error) error {
-	return &RulesParseError{line, err}
+func NewRuleParseError(line int, err error) error {
+	return &RuleParseError{line, err}
 }
 
 type RulesParser struct {
 	model *dms.Model
 	cr    *csv.Reader
 	line  int
+	// Set of validation errors found as rules are parsed.
+	verrs []error
 }
 
 func (*RulesParser) isIdent(v string) bool {
@@ -296,9 +300,11 @@ func (p *RulesParser) parseTable(v string) ([]string, error) {
 		return nil, err
 	}
 
+	// Validate tables.
 	for _, t := range tables {
 		if tbl := p.model.Tables.Get(t); tbl == nil {
-			return nil, fmt.Errorf("table '%s' is not defined", t)
+			err = NewRuleParseError(p.line, fmt.Errorf("table '%s' is not defined", t))
+			p.verrs = append(p.verrs, err)
 		}
 	}
 
@@ -341,7 +347,8 @@ func (p *RulesParser) parseField(v string, tables []string) (Condition, error) {
 			tbl := p.model.Tables.Get(t)
 
 			if fld := tbl.Fields.Get(f); fld == nil {
-				return nil, fmt.Errorf("field '%s' is not defined for table '%s'", f, t)
+				err := NewRuleParseError(p.line, fmt.Errorf("field '%s' is not defined for table '%s'", f, t))
+				p.verrs = append(p.verrs, err)
 			}
 		}
 	}
@@ -367,7 +374,7 @@ func (p *RulesParser) parsePrevalence(v string) ([]string, error) {
 	return p.parseInSet(v)
 }
 
-func (*RulesParser) parseRank(v string) (Rank, error) {
+func (p *RulesParser) parseRank(v string) (Rank, error) {
 	switch strings.ToLower(v) {
 	case "high":
 		return HighRank, nil
@@ -379,7 +386,10 @@ func (*RulesParser) parseRank(v string) (Rank, error) {
 		return LowRank, nil
 	}
 
-	return 0, fmt.Errorf("'%s' is not a valid rank", v)
+	err := NewRuleParseError(p.line, fmt.Errorf("'%s' is not a valid rank", v))
+	p.verrs = append(p.verrs, err)
+
+	return 0, nil
 }
 
 func (p *RulesParser) Parse() ([]*Rule, error) {
@@ -404,23 +414,23 @@ func (p *RulesParser) Parse() ([]*Rule, error) {
 	)
 
 	if tables, err = p.parseTable(row[0]); err != nil {
-		return nil, NewRulesParseError(p.line, err)
+		return nil, NewRuleParseError(p.line, err)
 	}
 
 	if condition, err = p.parseField(row[1], tables); err != nil {
-		return nil, NewRulesParseError(p.line, err)
+		return nil, NewRuleParseError(p.line, err)
 	}
 
 	if issueCode, err = p.parseIssueCode(row[2]); err != nil {
-		return nil, NewRulesParseError(p.line, err)
+		return nil, NewRuleParseError(p.line, err)
 	}
 
 	if prevalences, err = p.parsePrevalence(row[3]); err != nil {
-		return nil, NewRulesParseError(p.line, err)
+		return nil, NewRuleParseError(p.line, err)
 	}
 
 	if rank, err = p.parseRank(row[4]); err != nil {
-		return nil, NewRulesParseError(p.line, err)
+		return nil, NewRuleParseError(p.line, err)
 	}
 
 	var rules []*Rule
@@ -463,6 +473,14 @@ func (p *RulesParser) ParseAll() ([]*Rule, error) {
 	return rules, nil
 }
 
+func (p *RulesParser) ValidationErrors() []error {
+	if len(p.verrs) > 0 {
+		return p.verrs
+	}
+
+	return nil
+}
+
 func NewRulesParser(r io.Reader, m *dms.Model) (*RulesParser, error) {
 	cr := csv.NewReader(&UniversalReader{r})
 
@@ -475,7 +493,7 @@ func NewRulesParser(r io.Reader, m *dms.Model) (*RulesParser, error) {
 	_, err := cr.Read()
 
 	if err != nil {
-		return nil, NewRulesParseError(1, fmt.Errorf("invalid header: %s", err))
+		return nil, NewRuleParseError(1, fmt.Errorf("invalid header: %s", err))
 	}
 
 	return &RulesParser{

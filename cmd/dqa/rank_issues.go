@@ -73,6 +73,22 @@ var rankIssuesCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 
+		var stop bool
+		for _, s := range ruleSets {
+			if errs := s.Parser.ValidationErrors(); errs != nil {
+				stop = true
+
+				fmt.Fprintf(os.Stderr, "Validation errors in '%s' rules file\n", s.Name)
+				for _, err := range errs {
+					fmt.Fprintln(os.Stderr, err)
+				}
+			}
+		}
+
+		if stop {
+			os.Exit(1)
+		}
+
 		var (
 			path string
 			f    *os.File
