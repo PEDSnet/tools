@@ -160,6 +160,8 @@ func ReadResultsFromDir(dir string, skip bool) (map[string]*Report, error) {
 // Report contains a set of results for a DQA analysis.
 type Report struct {
 	Name    string
+	Model   string
+	Version string
 	Results Results
 	I2b2    bool
 
@@ -187,12 +189,17 @@ func (r *Report) ReadResults(reader io.Reader) (int, error) {
 	for {
 		result, err = rr.ReadResult()
 
-		if err != nil {
-			if err == io.EOF {
-				return n, nil
-			}
+		if err == io.EOF {
+			return n, nil
+		}
 
+		if err != nil {
 			return n, err
+		}
+
+		if n == 0 {
+			r.Model = result.Model
+			r.Version = result.ModelVersion
 		}
 
 		r.Results = append(r.Results, result)

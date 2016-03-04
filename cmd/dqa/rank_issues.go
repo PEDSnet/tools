@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	dms "github.com/chop-dbhi/data-models-service/client"
 	"github.com/fatih/color"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
@@ -29,20 +30,45 @@ var rankIssuesCmd = &cobra.Command{
 
 		dryRun := viper.GetBool("rankissues.dryrun")
 		token := viper.GetString("rankissues.token")
+		url := viper.GetString("rankissues.url")
 
 		if token == "" {
 			fmt.Fprintln(os.Stderr, "Token required. Use the --token option.")
 			os.Exit(1)
 		}
 
-		ruleSets, err := FetchRules(token)
+		// Read secondary reports from directory.
+		reports, err := ReadResultsFromDir(args[0], true)
 
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		reports, err := ReadResultsFromDir(args[0], true)
+		// Get the data model name and version to validate against.
+		var model, version string
+		for _, report := range reports {
+			model = report.Model
+			version = report.Version
+			break
+		}
 
+		cmd.Printf("Ranking against model '%s/%s'\n", model, version)
+
+		client, err := dms.New(url)
+		if err != nil {
+			log.Fatalf("Could not connect to service %s: %s", url, err)
+		}
+
+		if err = client.Ping(); err != nil {
+			log.Fatalf("Error communicating with the service: %s", err)
+		}
+
+		m, err := client.ModelRevision(model, version)
+		if err != nil {
+			log.Fatalf("Error fetching model: %s", err)
+		}
+
+		ruleSets, err := FetchRules(token, m)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -191,7 +217,9 @@ func init() {
 
 	flags.Bool("dryrun", false, "Outputs a summary of what rank matches without saving the files.")
 	flags.String("token", "", "GitHub token to fetch the rules.")
+	flags.String("url", "http://data-models.origins.link", "Data models service URL.")
 
 	viper.BindPFlag("rankissues.dryrun", flags.Lookup("dryrun"))
 	viper.BindPFlag("rankissues.token", flags.Lookup("token"))
+	viper.BindPFlag("rankissues.url", flags.Lookup("url"))
 }

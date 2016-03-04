@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+
+	dms "github.com/chop-dbhi/data-models-service/client"
 )
 
 var (
@@ -20,7 +22,7 @@ var (
 	}
 )
 
-func fetchRules(name, path string, token string) (*RuleSet, error) {
+func fetchRules(name, path string, token string, model *dms.Model) (*RuleSet, error) {
 	url := fmt.Sprintf(dataQualityContentsURI, path)
 	req, err := http.NewRequest("GET", url, nil)
 
@@ -39,7 +41,7 @@ func fetchRules(name, path string, token string) (*RuleSet, error) {
 
 	defer resp.Body.Close()
 
-	p, err := NewRulesParser(resp.Body)
+	p, err := NewRulesParser(resp.Body, model)
 
 	if err != nil {
 		return nil, err
@@ -57,7 +59,7 @@ func fetchRules(name, path string, token string) (*RuleSet, error) {
 	}, nil
 }
 
-func FetchRules(token string) ([]*RuleSet, error) {
+func FetchRules(token string, model *dms.Model) ([]*RuleSet, error) {
 	size := len(ruleSetFiles)
 
 	sets := make([]*RuleSet, size)
@@ -70,7 +72,7 @@ func FetchRules(token string) ([]*RuleSet, error) {
 
 	for n, p := range ruleSetFiles {
 		go func(index int, name, path string) {
-			if rs, err := fetchRules(name, path, token); err != nil {
+			if rs, err := fetchRules(name, path, token, model); err != nil {
 				errs[index] = err
 			} else {
 				sets[index] = rs
@@ -255,8 +257,9 @@ func NewRulesParseError(line int, err error) error {
 }
 
 type RulesParser struct {
-	cr   *csv.Reader
-	line int
+	model *dms.Model
+	cr    *csv.Reader
+	line  int
 }
 
 func (*RulesParser) isIdent(v string) bool {
@@ -288,10 +291,21 @@ func (p *RulesParser) parseInSet(v string) ([]string, error) {
 }
 
 func (p *RulesParser) parseTable(v string) ([]string, error) {
-	return p.parseInSet(v)
+	tables, err := p.parseInSet(v)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, t := range tables {
+		if tbl := p.model.Tables.Get(t); tbl == nil {
+			return nil, fmt.Errorf("table '%s' is not defined", t)
+		}
+	}
+
+	return tables, nil
 }
 
-func (p *RulesParser) parseField(v string) (Condition, error) {
+func (p *RulesParser) parseField(v string, tables []string) (Condition, error) {
 	// Check for type.
 	switch strings.ToLower(strings.TrimSpace(v)) {
 	case "is primary key":
@@ -314,14 +328,26 @@ func (p *RulesParser) parseField(v string) (Condition, error) {
 	}
 
 	// Assume in(..) or single value.
-	l, err := p.parseInSet(v)
+	fields, err := p.parseInSet(v)
 
 	if err != nil {
 		return nil, err
 	}
 
+	// Validate all fields are defined in all tables for this rule.
+	for _, f := range fields {
+		for _, t := range tables {
+			// Tables already validated.
+			tbl := p.model.Tables.Get(t)
+
+			if fld := tbl.Fields.Get(f); fld == nil {
+				return nil, fmt.Errorf("field '%s' is not defined for table '%s'", f, t)
+			}
+		}
+	}
+
 	return func(r *Result) bool {
-		return inSlice(r.Field, l)
+		return inSlice(r.Field, fields)
 	}, nil
 }
 
@@ -381,7 +407,7 @@ func (p *RulesParser) Parse() ([]*Rule, error) {
 		return nil, NewRulesParseError(p.line, err)
 	}
 
-	if condition, err = p.parseField(row[1]); err != nil {
+	if condition, err = p.parseField(row[1], tables); err != nil {
 		return nil, NewRulesParseError(p.line, err)
 	}
 
@@ -437,7 +463,7 @@ func (p *RulesParser) ParseAll() ([]*Rule, error) {
 	return rules, nil
 }
 
-func NewRulesParser(r io.Reader) (*RulesParser, error) {
+func NewRulesParser(r io.Reader, m *dms.Model) (*RulesParser, error) {
 	cr := csv.NewReader(&UniversalReader{r})
 
 	cr.FieldsPerRecord = len(rulesHeader)
@@ -449,11 +475,12 @@ func NewRulesParser(r io.Reader) (*RulesParser, error) {
 	_, err := cr.Read()
 
 	if err != nil {
-		return nil, NewRulesParseError(1, fmt.Errorf("invalid header"))
+		return nil, NewRulesParseError(1, fmt.Errorf("invalid header: %s", err))
 	}
 
 	return &RulesParser{
-		line: 1,
-		cr:   cr,
+		model: m,
+		line:  1,
+		cr:    cr,
 	}, nil
 }
