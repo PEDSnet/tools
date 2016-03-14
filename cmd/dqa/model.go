@@ -6,6 +6,8 @@ import (
 	"strings"
 )
 
+const DefaultServiceURL = "http://data-models-service.research.chop.edu"
+
 var ErrInvalidHeader = errors.New("invalid results header")
 
 // Rank is an ordered enumeration of result issue rankings.

@@ -188,7 +188,7 @@ func init() {
 	flags.String("root", "", "Root directory of output directory.")
 	flags.String("model", "pedsnet", "The model the DQA files are generated for.")
 	flags.String("version", "2.0.0", "The version of the model the DQA files are generated for.")
-	flags.String("url", "http://data-models.origins.link", "URL to a DataModels service.")
+	flags.String("url", DefaultServiceURL, "Data models service URL.")
 	flags.String("copy-persistent", "", "Copies issues in the specified path with a status of 'persistent' from an existing analysis.")
 
 	viper.BindPFlag("generate.root", flags.Lookup("root"))

@@ -233,7 +233,7 @@ func init() {
 
 	flags.Bool("dryrun", false, "Outputs a summary of what rank matches without saving the files.")
 	flags.String("token", "", "GitHub token to fetch the rules.")
-	flags.String("url", "http://data-models.origins.link", "Data models service URL.")
+	flags.String("url", DefaultServiceURL, "Data models service URL.")
 
 	viper.BindPFlag("rankissues.dryrun", flags.Lookup("dryrun"))
 	viper.BindPFlag("rankissues.token", flags.Lookup("token"))
