@@ -6,9 +6,9 @@ var (
 	progVersion = semver.Version{
 		Major: 0,
 		Minor: 1,
-		Patch: 6,
+		Patch: 7,
 		Pre: []semver.PRVersion{
-			{VersionStr: "final"},
+			{VersionStr: "beta"},
 		},
 	}
 
