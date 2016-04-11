@@ -83,6 +83,7 @@ var ExcludedTables = map[string]struct{}{
 	"concept_synonym":       struct{}{},
 	"domain":                struct{}{},
 	"drug_strength":         struct{}{},
+	"measurement_organism":  struct{}{},
 	"source_to_concept_map": struct{}{},
 	"relationship":          struct{}{},
 	"vocabulary":            struct{}{},
