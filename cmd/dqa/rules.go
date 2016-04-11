@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"regexp"
 	"strings"
@@ -40,6 +41,18 @@ func fetchRules(name, path string, token string, model *dms.Model) (*RuleSet, er
 	}
 
 	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		var msg string
+
+		if body, err := ioutil.ReadAll(resp.Body); err != nil {
+			msg = "Problem decoding error messages."
+		} else {
+			msg = string(body)
+		}
+
+		return nil, fmt.Errorf("Error fetching `%s` rule file\n%s: %s", name, resp.Status, msg)
+	}
 
 	p, err := NewRulesParser(resp.Body, model)
 
@@ -493,7 +506,7 @@ func NewRulesParser(r io.Reader, m *dms.Model) (*RulesParser, error) {
 	_, err := cr.Read()
 
 	if err != nil {
-		return nil, NewRuleParseError(1, fmt.Errorf("invalid header: %s", err))
+		return nil, NewRuleParseError(1, fmt.Errorf("Invalid header: %s", err))
 	}
 
 	return &RulesParser{
