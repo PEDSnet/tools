@@ -28,13 +28,14 @@ var rankIssuesCmd = &cobra.Command{
 			return
 		}
 
+		log.SetFlags(0)
+
 		dryRun := viper.GetBool("rankissues.dryrun")
 		token := viper.GetString("rankissues.token")
 		url := viper.GetString("rankissues.url")
 
 		if token == "" {
-			fmt.Fprintln(os.Stderr, "Token required. Use the --token option.")
-			os.Exit(1)
+			log.Fatal("Token required. Use the --token option.")
 		}
 
 		// Read secondary reports from directory.
