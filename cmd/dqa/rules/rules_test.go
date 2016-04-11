@@ -1,4 +1,4 @@
-package main
+package rules
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/PEDSnet/tools/cmd/dqa/results"
 	dms "github.com/chop-dbhi/data-models-service/client"
 )
 
@@ -48,7 +49,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 				Condition:  isPrimaryKey,
 				IssueCode:  "g4-001",
 				Prevalence: "full",
-				Rank:       HighRank,
+				Rank:       results.HighRank,
 			},
 			"condition_occurrence_id",
 		},
@@ -58,7 +59,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 				Condition:  isPrimaryKey,
 				IssueCode:  "g4-001",
 				Prevalence: "full",
-				Rank:       HighRank,
+				Rank:       results.HighRank,
 			},
 			"visit_payer_id",
 		},
@@ -70,7 +71,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 				Condition:  isSourceValue,
 				IssueCode:  "g2-013",
 				Prevalence: "medium",
-				Rank:       HighRank,
+				Rank:       results.HighRank,
 			},
 			"visit_payer_source_value",
 		},
@@ -80,7 +81,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 				Condition:  isSourceValue,
 				IssueCode:  "g2-013",
 				Prevalence: "high",
-				Rank:       HighRank,
+				Rank:       results.HighRank,
 			},
 			"visit_payer_source_value",
 		},
@@ -90,7 +91,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 				Condition:  isSourceValue,
 				IssueCode:  "g2-013",
 				Prevalence: "low",
-				Rank:       HighRank,
+				Rank:       results.HighRank,
 			},
 			"visit_payer_source_value",
 		},
@@ -102,7 +103,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 				Condition:  isDateYear,
 				IssueCode:  "g2-002",
 				Prevalence: "unknown",
-				Rank:       HighRank,
+				Rank:       results.HighRank,
 			},
 			"visit_payer_date",
 		},
@@ -112,7 +113,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 			Rule{
 				Table: "visit_payer",
 				Condition: &Condition{
-					Test: func(r *Result) bool {
+					Test: func(r *results.Result) bool {
 						switch r.Field {
 						case "provider_id", "care_site_id":
 							return true
@@ -122,7 +123,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 				},
 				IssueCode:  "g2-013",
 				Prevalence: "high",
-				Rank:       MediumRank,
+				Rank:       results.MediumRank,
 			},
 			"provider_id",
 		},
@@ -130,7 +131,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 			Rule{
 				Table: "visit_payer",
 				Condition: &Condition{
-					Test: func(r *Result) bool {
+					Test: func(r *results.Result) bool {
 						switch r.Field {
 						case "provider_id", "care_site_id":
 							return true
@@ -140,7 +141,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 				},
 				IssueCode:  "g2-013",
 				Prevalence: "low",
-				Rank:       MediumRank,
+				Rank:       results.MediumRank,
 			},
 			"care_site_id",
 		},
@@ -152,7 +153,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 				Condition:  isConceptId,
 				IssueCode:  "g3-002",
 				Prevalence: "unknown",
-				Rank:       MediumRank,
+				Rank:       results.MediumRank,
 			},
 			"visit_payer_concept_id",
 		},
@@ -164,7 +165,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 				Condition:  isOther,
 				IssueCode:  "g3-002",
 				Prevalence: "unknown",
-				Rank:       MediumRank,
+				Rank:       results.MediumRank,
 			},
 			"some_field",
 		},
@@ -175,7 +176,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 				Condition:  isDateYearTime,
 				IssueCode:  "g2-002",
 				Prevalence: "unknown",
-				Rank:       LowRank,
+				Rank:       results.LowRank,
 			},
 			"visit_payer_time",
 		},
@@ -185,13 +186,13 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 func TestRulesParser(t *testing.T) {
 	r := strings.NewReader(testRules)
 
-	p, err := NewRulesParser(r, model)
+	p, err := NewParser(r, model, "")
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	rules, err := p.ParseAll()
+	rules, err := p.Parse()
 
 	if err != nil {
 		t.Error(err)
@@ -221,7 +222,7 @@ func TestRulesParser(t *testing.T) {
 			t.Errorf("[%d] expected %s, got %s", i, act.Rank, exp.Rule.Rank)
 		}
 
-		res := &Result{
+		res := &results.Result{
 			Table:      act.Table,
 			Field:      exp.TestField,
 			IssueCode:  act.IssueCode,
@@ -236,34 +237,25 @@ func TestRulesParser(t *testing.T) {
 			t.Errorf("[%d] condition function doesn't match", i)
 		}
 
-		if _, ok := act.Matches(res); !ok {
+		if !act.Matches(res) {
 			t.Errorf("[%d] rule does not match result", i)
 		}
 	}
 }
 
-func TestFetchRules(t *testing.T) {
+func TestFetch(t *testing.T) {
 	token := os.Getenv("GITHUB_AUTH_TOKEN")
 
 	if token == "" {
 		t.Skip()
 	}
 
-	sets, err := FetchRules(token, model)
-
+	rules, err := Fetch(token, model)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(sets) != 3 {
-		t.Fatalf("expected 3 rule sets, got %d", len(sets))
-	}
-
-	for _, set := range sets {
-		if len(set.Rules) == 0 {
-			t.Errorf("[%s] no rules parsed", set)
-		} else {
-			t.Logf("[%s] contains %d rules", set, len(set.Rules))
-		}
+	if len(rules) == 0 {
+		t.Errorf("No rules parsed")
 	}
 }

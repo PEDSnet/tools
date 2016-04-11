@@ -1,14 +1,14 @@
-package main
+package uni
 
 import "io"
 
 // UniversalReader wraps an io.Reader to replace carriage returns with newlines.
 // This is used with the csv.Reader so it can properly delimit lines.
-type UniversalReader struct {
+type Reader struct {
 	r io.Reader
 }
 
-func (r *UniversalReader) Read(buf []byte) (int, error) {
+func (r *Reader) Read(buf []byte) (int, error) {
 	n, err := r.r.Read(buf)
 
 	// Replace carriage returns with newlines
@@ -19,4 +19,8 @@ func (r *UniversalReader) Read(buf []byte) (int, error) {
 	}
 
 	return n, err
+}
+
+func New(r io.Reader) *Reader {
+	return &Reader{r}
 }
