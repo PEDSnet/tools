@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"regexp"
 	"strings"
@@ -145,13 +146,16 @@ type Matcher interface {
 	Matches(r *Result) (Rank, bool)
 }
 
-type Condition func(r *Result) bool
+type Condition struct {
+	Name string
+	Test func(r *Result) bool
+}
 
 // Rule defines a mapping from a table, field condition, issue code, and
 // prevalence to a specific rank.
 type Rule struct {
 	Table      string
-	Condition  Condition
+	Condition  *Condition
 	IssueCode  string
 	Prevalence string
 	Rank       Rank
@@ -163,7 +167,7 @@ func (r *Rule) Matches(s *Result) (Rank, bool) {
 		return 0, false
 	}
 
-	if !r.Condition(s) {
+	if !r.Condition.Test(s) {
 		return 0, false
 	}
 
@@ -179,33 +183,63 @@ func (r *Rule) Matches(s *Result) (Rank, bool) {
 }
 
 // Field conditionals.
-func isPersistent(r *Result) bool {
-	return strings.ToLower(r.Status) == "persistent"
-}
+var (
+	isPersistent = &Condition{
+		Name: "is persistent",
+		Test: func(r *Result) bool {
+			return strings.ToLower(r.Status) == "persistent"
+		},
+	}
 
-func isPrimaryKey(r *Result) bool {
-	return r.Field == fmt.Sprintf("%s_id", r.Table)
-}
+	isPrimaryKey = &Condition{
+		Name: "is primary key",
+		Test: func(r *Result) bool {
+			return r.Field == fmt.Sprintf("%s_id", r.Table)
+		},
+	}
 
-func isSourceValue(r *Result) bool {
-	return strings.HasSuffix(r.Field, "_source_value")
-}
+	isSourceValue = &Condition{
+		Name: "is source value",
+		Test: func(r *Result) bool {
+			return strings.HasSuffix(r.Field, "_source_value")
+		},
+	}
 
-func isConceptId(r *Result) bool {
-	return strings.HasSuffix(r.Field, "_concept_id")
-}
+	isConceptId = &Condition{
+		Name: "is concept id",
+		Test: func(r *Result) bool {
+			return strings.HasSuffix(r.Field, "_concept_id")
+		},
+	}
 
-func isForeignKey(r *Result) bool {
-	return !isPrimaryKey(r) && strings.HasSuffix(r.Field, "_id") && !isConceptId(r)
-}
+	isForeignKey = &Condition{
+		Name: "is foreign key",
+		Test: func(r *Result) bool {
+			return !isPrimaryKey.Test(r) && strings.HasSuffix(r.Field, "_id") && !isConceptId.Test(r)
+		},
+	}
 
-func isDateYear(r *Result) bool {
-	return strings.Contains(r.Field, "date") || strings.Contains(r.Field, "year")
-}
+	isDateYear = &Condition{
+		Name: "is date/year",
+		Test: func(r *Result) bool {
+			return strings.Contains(r.Field, "date") || strings.Contains(r.Field, "year")
+		},
+	}
 
-func isOther(r *Result) bool {
-	return !isPrimaryKey(r) && !isForeignKey(r) && !isSourceValue(r) && !isConceptId(r) && !isDateYear(r)
-}
+	isDateYearTime = &Condition{
+		Name: "is date/year/time",
+		Test: func(r *Result) bool {
+			return strings.HasSuffix(r.Field, "_date") || strings.HasSuffix(r.Field, "_year") || strings.HasSuffix(r.Field, "_time")
+		},
+	}
+
+	isOther = &Condition{
+		Name: "is other",
+		Test: func(r *Result) bool {
+			return !isPrimaryKey.Test(r) && !isForeignKey.Test(r) && !isSourceValue.Test(r) && !isConceptId.Test(r) && !isDateYear.Test(r) && !isDateYearTime.Test(r)
+		},
+	}
+)
 
 type RuleSet struct {
 	Name   string
@@ -219,7 +253,7 @@ func (rs *RuleSet) String() string {
 
 func (rs *RuleSet) Matches(r *Result) (Rank, bool) {
 	// Global rule.
-	if isPersistent(r) {
+	if isPersistent.Test(r) {
 		return 0, false
 	}
 
@@ -253,6 +287,7 @@ var (
 		"is primary key",
 		"is source value",
 		"is date/year",
+		"is date/year/time",
 		"is concept id",
 		"is other",
 	}
@@ -324,7 +359,7 @@ func (p *RulesParser) parseTable(v string) ([]string, error) {
 	return tables, nil
 }
 
-func (p *RulesParser) parseField(v string, tables []string) (Condition, error) {
+func (p *RulesParser) parseField(v string, tables []string) (*Condition, error) {
 	// Check for type.
 	switch strings.ToLower(strings.TrimSpace(v)) {
 	case "is primary key":
@@ -335,6 +370,9 @@ func (p *RulesParser) parseField(v string, tables []string) (Condition, error) {
 
 	case "is date/year":
 		return isDateYear, nil
+
+	case "is date/year/time":
+		return isDateYearTime, nil
 
 	case "is foreign key":
 		return isForeignKey, nil
@@ -366,8 +404,10 @@ func (p *RulesParser) parseField(v string, tables []string) (Condition, error) {
 		}
 	}
 
-	return func(r *Result) bool {
-		return inSlice(r.Field, fields)
+	return &Condition{
+		Test: func(r *Result) bool {
+			return inSlice(r.Field, fields)
+		},
 	}, nil
 }
 
@@ -420,7 +460,7 @@ func (p *RulesParser) Parse() ([]*Rule, error) {
 
 	var (
 		tables      []string
-		condition   Condition
+		condition   *Condition
 		issueCode   string
 		prevalences []string
 		rank        Rank
@@ -431,6 +471,10 @@ func (p *RulesParser) Parse() ([]*Rule, error) {
 	}
 
 	if condition, err = p.parseField(row[1], tables); err != nil {
+		if condition == isDateYear {
+			log.Printf("[WARN] Deprecated type `is date/year` was found on line %d. Change to `is date/year/time`.", p.line)
+		}
+
 		return nil, NewRuleParseError(p.line, err)
 	}
 

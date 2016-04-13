@@ -112,7 +112,7 @@ var rankIssuesCmd = &cobra.Command{
 			for _, r := range report.Results {
 				changedText = "No"
 
-				if isPersistent(r) {
+				if isPersistent.Test(r) {
 					persistentText = "Yes"
 				} else {
 					persistentText = "No"
