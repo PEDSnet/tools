@@ -35,6 +35,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 "visit_payer","in (provider_id, care_site_id)",G2-013,"in (high, low)",Medium
 "visit_payer","is concept id",G3-002,-,Medium
 "visit_payer","is other",G3-002,-,Medium
+"visit_payer","is date/year/time",G2-002,-,Low
 `
 	parsedRules = []struct {
 		Rule      Rule
@@ -166,6 +167,17 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 				Rank:       MediumRank,
 			},
 			"some_field",
+		},
+
+		{
+			Rule{
+				Table:      "visit_payer",
+				Condition:  isDateYearTime,
+				IssueCode:  "g2-002",
+				Prevalence: "unknown",
+				Rank:       LowRank,
+			},
+			"visit_payer_time",
 		},
 	}
 )

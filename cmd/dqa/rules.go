@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"regexp"
 	"strings"
@@ -225,6 +226,13 @@ var (
 		},
 	}
 
+	isDateYearTime = &Condition{
+		Name: "is date/year/time",
+		Test: func(r *Result) bool {
+			return strings.HasSuffix(r.Field, "_date") || strings.HasSuffix(r.Field, "_year") || strings.HasSuffix(r.Field, "_time")
+		},
+	}
+
 	isOther = &Condition{
 		Name: "is other",
 		Test: func(r *Result) bool {
@@ -279,6 +287,7 @@ var (
 		"is primary key",
 		"is source value",
 		"is date/year",
+		"is date/year/time",
 		"is concept id",
 		"is other",
 	}
@@ -361,6 +370,9 @@ func (p *RulesParser) parseField(v string, tables []string) (*Condition, error) 
 
 	case "is date/year":
 		return isDateYear, nil
+
+	case "is date/year/time":
+		return isDateYearTime, nil
 
 	case "is foreign key":
 		return isForeignKey, nil
@@ -459,6 +471,10 @@ func (p *RulesParser) Parse() ([]*Rule, error) {
 	}
 
 	if condition, err = p.parseField(row[1], tables); err != nil {
+		if condition == isDateYear {
+			log.Printf("[WARN] Deprecated type `is date/year` was found on line %d. Change to `is date/year/time`.", p.line)
+		}
+
 		return nil, NewRuleParseError(p.line, err)
 	}
 
