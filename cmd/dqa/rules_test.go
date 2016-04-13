@@ -2,10 +2,29 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"testing"
+
+	dms "github.com/chop-dbhi/data-models-service/client"
 )
+
+var model *dms.Model
+
+func init() {
+	url := dms.DefaultServiceURL
+
+	client, err := dms.New(url)
+	if err != nil {
+		log.Fatalf("Could not connect to service %s: %s", url, err)
+	}
+
+	model, err = client.ModelRevision("pedsnet", "2.2.0")
+	if err != nil {
+		log.Fatalf("Error fetching model: %s", err)
+	}
+}
 
 var (
 	testRules = `
@@ -91,12 +110,14 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 		{
 			Rule{
 				Table: "visit_payer",
-				Condition: func(r *Result) bool {
-					switch r.Field {
-					case "provider_id", "care_site_id":
-						return true
-					}
-					return false
+				Condition: &Condition{
+					Test: func(r *Result) bool {
+						switch r.Field {
+						case "provider_id", "care_site_id":
+							return true
+						}
+						return false
+					},
 				},
 				IssueCode:  "g2-013",
 				Prevalence: "high",
@@ -107,12 +128,14 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 		{
 			Rule{
 				Table: "visit_payer",
-				Condition: func(r *Result) bool {
-					switch r.Field {
-					case "provider_id", "care_site_id":
-						return true
-					}
-					return false
+				Condition: &Condition{
+					Test: func(r *Result) bool {
+						switch r.Field {
+						case "provider_id", "care_site_id":
+							return true
+						}
+						return false
+					},
 				},
 				IssueCode:  "g2-013",
 				Prevalence: "low",
@@ -150,7 +173,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 func TestRulesParser(t *testing.T) {
 	r := strings.NewReader(testRules)
 
-	p, err := NewRulesParser(r)
+	p, err := NewRulesParser(r, model)
 
 	if err != nil {
 		t.Fatal(err)
@@ -193,11 +216,11 @@ func TestRulesParser(t *testing.T) {
 			Prevalence: act.Prevalence,
 		}
 
-		if !exp.Rule.Condition(res) {
+		if !exp.Rule.Condition.Test(res) {
 			panic(fmt.Sprintf("[%d] expected condition failed", i))
 		}
 
-		if !act.Condition(res) {
+		if !act.Condition.Test(res) {
 			t.Errorf("[%d] condition function doesn't match", i)
 		}
 
@@ -214,7 +237,7 @@ func TestFetchRules(t *testing.T) {
 		t.Skip()
 	}
 
-	sets, err := FetchRules(token)
+	sets, err := FetchRules(token, model)
 
 	if err != nil {
 		t.Fatal(err)
