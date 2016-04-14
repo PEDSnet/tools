@@ -1,11 +1,35 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
+	"github.com/PEDSnet/tools/cmd/dqa/feedback"
+	"github.com/PEDSnet/tools/cmd/dqa/generate"
+	"github.com/PEDSnet/tools/cmd/dqa/query"
+	"github.com/PEDSnet/tools/cmd/dqa/rank"
+	"github.com/PEDSnet/tools/cmd/dqa/validate"
+	"github.com/blang/semver"
 	"github.com/spf13/cobra"
 )
+
+var (
+	progVersion = semver.Version{
+		Major: 0,
+		Minor: 2,
+		Patch: 0,
+		Pre: []semver.PRVersion{
+			{VersionStr: "beta"},
+		},
+	}
+
+	buildVersion string
+)
+
+func init() {
+	progVersion.Build = []string{
+		buildVersion,
+	}
+}
 
 var mainCmd = &cobra.Command{
 	Use: "pedsnet-dqa",
@@ -23,17 +47,18 @@ var versionCmd = &cobra.Command{
 	Short: "Prints the version of the program.",
 
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Fprintf(os.Stdout, "%s\n", progVersion)
+		cmd.SetOutput(os.Stdout)
+		cmd.Printf("%s\n", progVersion)
 	},
 }
 
 func main() {
 	mainCmd.AddCommand(versionCmd)
-	mainCmd.AddCommand(generateCmd)
-	mainCmd.AddCommand(validateCmd)
-	mainCmd.AddCommand(feedbackCmd)
-	mainCmd.AddCommand(rankIssuesCmd)
-	mainCmd.AddCommand(queryCmd)
+	mainCmd.AddCommand(generate.Cmd)
+	mainCmd.AddCommand(validate.Cmd)
+	mainCmd.AddCommand(feedback.Cmd)
+	mainCmd.AddCommand(rank.Cmd)
+	mainCmd.AddCommand(query.Cmd)
 
 	mainCmd.Execute()
 }
