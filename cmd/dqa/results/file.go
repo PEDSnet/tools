@@ -3,14 +3,13 @@ package results
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/blang/semver"
 )
+
+var githubIssueURL = "https://github.com/PEDSnet/%s/issues/%s"
 
 // inStringSlice returns true if the string is in the slice.
 func inStringSlice(s string, l []string) bool {
@@ -182,8 +181,48 @@ func (r *Result) Row() []string {
 	}
 }
 
+func (r *Result) IsIssue() bool {
+	return !r.IsPersistent() && r.IssueCode != ""
+}
+
 func (r *Result) IsPersistent() bool {
 	return strings.ToLower(r.Status) == "persistent"
+}
+
+func (r *Result) IsUnresolved() bool {
+	return strings.ToLower(r.Status) == "under review"
+}
+
+func (r *Result) SiteName() string {
+	if r.DataVersion == "" {
+		return ""
+	}
+
+	return strings.Split(r.DataVersion, "-")[2]
+}
+
+func (r *Result) ETLVersion() string {
+	if r.DataVersion == "" {
+		return ""
+	}
+
+	return strings.Split(r.DataVersion, "-")[3]
+}
+
+func (r *Result) GithubURL() string {
+	if r.GithubID == "" {
+		return ""
+	}
+
+	site := r.SiteName()
+
+	if site == "" {
+		return ""
+	}
+
+	// Template of the Github issues URL.
+	return fmt.Sprintf(githubIssueURL, site, r.GithubID)
+
 }
 
 // Results is a sortable set of results by field. Each set should be specific
@@ -202,58 +241,10 @@ func (r Results) Len() int {
 	return len(r)
 }
 
-// ReadFromDir reads all files in a directory and returns reports for each.
-func ReadFromDir(dir string) (map[string]*File, error) {
-	fns, err := ioutil.ReadDir(dir)
-
-	if err != nil {
-		return nil, err
-	}
-
-	var (
-		path string
-		f    *os.File
-	)
-
-	reports := make(map[string]*File)
-
-	// Iterate over each CSV file in the directory.
-	for _, fi := range fns {
-		if fi.IsDir() {
-			continue
-		}
-
-		if filepath.Ext(fi.Name()) != ".csv" {
-			continue
-		}
-
-		path = filepath.Join(dir, fi.Name())
-
-		if f, err = os.Open(path); err != nil {
-			return nil, err
-		}
-
-		report := &File{}
-		reports[fi.Name()] = report
-
-		_, err := report.Read(f)
-
-		f.Close()
-
-		// Presumably not a valid file.
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return reports, nil
-}
-
 // File contains a set of results.
 type File struct {
 	Name    string
 	Results Results
-	I2b2    bool
 }
 
 // String returns the name of associated with this file.

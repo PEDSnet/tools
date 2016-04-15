@@ -14,17 +14,11 @@ var (
 {{range .Tables}}## {{.Name}}
 {{range .Ranks}}### {{.Name}}
 
-{{range .Fields}}{{range .Results}}{{if .IssueCode}}- [ ] {{$R.Incr}}. **{{.Field}}**: {{.IssueDescription}} {{if .Finding}}({{.Finding}}){{end}}
+{{range .Fields}}{{range .Results}}{{if .IssueCode}}- [ ] {{$R.Incr}}. **{{.Field}}**: {{if .GithubID}}[#{{.GithubID}}]({{.GithubURL}}) {{end}}{{.IssueDescription}}{{if .Finding}}
+    - Finding: {{.Finding}}{{end}}
 {{end}}{{end}}{{end}}
 {{end}}
 {{end}}{{end}}{{end}}`
-
-	i2b2Template = `{{with $R := .}}{{range .Tables}}# {{.Name}}
-
-{{range .Fields}}{{range .Results}}- [ ] {{$R.Incr}}. **{{.Field}}**: {{.IssueDescription}} {{if .Finding}}({{.Finding}})
-{{end}}{{end}}{{end}}
-{{end}}
-{{end}}`
 
 	tableSections = map[string]map[string]int{
 		"Demographic Tables": {
@@ -64,7 +58,6 @@ func init() {
 	tmpl = template.New("results")
 
 	template.Must(tmpl.New("pedsnet").Parse(pedsnetTemplate))
-	template.Must(tmpl.New("i2b2").Parse(i2b2Template))
 }
 
 // MarkdownReport
@@ -72,48 +65,14 @@ type MarkdownReport struct {
 	File *File
 }
 
-// prepareResults removes results that should not be added in the report.
-func (m *MarkdownReport) prepareResults() Results {
-	var out Results
-
-	for _, r := range m.File.Results {
-		// i2b2-related conditions.
-		if m.File.I2b2 {
-			if r.Cause != "i2b2 transform" || r.Status != "solution proposed" {
-				continue
-			}
-		} else if r.Cause == "i2b2 transform" {
-			continue
-		}
-
-		if r.Status == "persistent" {
-			continue
-		}
-
-		if r.IssueCode == "" {
-			continue
-		}
-
-		out = append(out, r)
-	}
-
-	return out
-}
-
 // Render renders the report to the io.Writer.
 func (r *MarkdownReport) Render(w io.Writer) error {
-	var t *template.Template
-
-	if r.File.I2b2 {
-		t = tmpl.Lookup("i2b2")
-	} else {
-		t = tmpl.Lookup("pedsnet")
-	}
+	t := tmpl.Lookup("pedsnet")
 
 	var seq int
 
 	s := ResultSection{
-		Results: r.prepareResults(),
+		Results: r.File.Results,
 		seq:     &seq,
 	}
 
