@@ -96,12 +96,12 @@ flag which ensures all persistent issues are copied to the new template.
 				continue
 			}
 
-			// Build the persistent index if one exists.
-			var index persIndex
+			// Build an index of persistent and outstanding issues.
+			var index prevIssues
 
 			// Check if there is an existing file being copied.
 			if file, ok := files[fmt.Sprintf("%s.csv", table.Name)]; ok {
-				index = indexPersistentIssues(file)
+				index = indexPreviousIssues(file)
 			}
 
 			// Initialize the file.
@@ -174,15 +174,16 @@ flag which ensures all persistent issues are copied to the new template.
 }
 
 // Index of field/goal pairs to a set of results.
-type persIndex map[[2]string][]*results.Result
+type prevIssues map[[2]string][]*results.Result
 
 // Index persistent issues by field and goal. Multiple issues can be present
 // so a slice is used here.
-func indexPersistentIssues(f *results.File) map[[2]string][]*results.Result {
-	index := make(persIndex)
+func indexPreviousIssues(f *results.File) prevIssues {
+	index := make(prevIssues)
 
 	for _, r := range f.Results {
-		if strings.ToLower(r.Status) == "persistent" {
+		status := strings.ToLower(r.Status)
+		if status == "persistent" || status == "under review" {
 			results := index[[2]string{r.Field, r.Goal}]
 			results = append(results, r)
 			index[[2]string{r.Field, r.Goal}] = results
