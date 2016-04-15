@@ -40,8 +40,9 @@ var (
 			"drug_exposure":        3,
 			"observation":          4,
 			"measurement":          5,
-			"fact_relationship":    6,
-			"visit_payer":          7,
+			"measurement_organism": 6,
+			"fact_relationship":    7,
+			"visit_payer":          8,
 		},
 
 		"Admin Tables": {
