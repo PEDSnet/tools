@@ -44,6 +44,7 @@ var FileHeaderFields = []string{
 	"Cause",
 	"Status",
 	"Reviewer",
+	"Github ID",
 }
 
 // FileHeader stores the column position for each field.
@@ -64,6 +65,7 @@ type FileHeader struct {
 	Cause            int
 	Status           int
 	Reviewer         int
+	GithubID         int
 }
 
 func (*FileHeader) Fields() []string {
@@ -125,6 +127,8 @@ func ParseFileHeader(row []string) (*FileHeader, error) {
 			h.Status = i
 		case "reviewer":
 			h.Reviewer = i
+		case "github_id":
+			h.GithubID = i
 		default:
 			return nil, fmt.Errorf("invalid column: %s", row[i])
 		}
@@ -151,6 +155,7 @@ type Result struct {
 	Cause            string
 	Status           string
 	Reviewer         string
+	GithubID         string
 
 	rank string
 }
@@ -173,6 +178,7 @@ func (r *Result) Row() []string {
 		r.Cause,
 		r.Status,
 		r.Reviewer,
+		r.GithubID,
 	}
 }
 

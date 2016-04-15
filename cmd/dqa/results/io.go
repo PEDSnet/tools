@@ -53,6 +53,7 @@ func (r *Reader) Read() (*Result, error) {
 		Cause:            row[r.head.Cause],
 		Status:           row[r.head.Status],
 		Reviewer:         row[r.head.Reviewer],
+		GithubID:         row[r.head.GithubID],
 	}, nil
 }
 
