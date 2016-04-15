@@ -149,6 +149,7 @@ flag which ensures all persistent issues are copied to the new template.
 							res.Cause = r.Cause
 							res.Status = r.Status
 							res.Reviewer = r.Reviewer
+							res.GithubID = r.GithubID
 
 							w.Write(res)
 						}
