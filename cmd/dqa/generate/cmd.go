@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/PEDSnet/tools/cmd/dqa/results"
 	dms "github.com/chop-dbhi/data-models-service/client"
@@ -183,8 +182,7 @@ func indexPreviousIssues(f *results.File) prevIssues {
 	index := make(prevIssues)
 
 	for _, r := range f.Results {
-		status := strings.ToLower(r.Status)
-		if status == "persistent" || status == "under review" {
+		if r.IsPersistent() || r.IsUnresolved() {
 			results := index[[2]string{r.Field, r.Goal}]
 			results = append(results, r)
 			index[[2]string{r.Field, r.Goal}] = results

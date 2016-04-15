@@ -1,5 +1,5 @@
-hash: 05ae23b22ae391151ca1b16d1614c46564813d46087dd4f1455ec66989799e4b
-updated: 2016-04-14T09:51:35.085567068-04:00
+hash: 3da3b65ae1cfffabf21efd70b500db0e536c3c47834eb98b052760fed5eabc8a
+updated: 2016-04-15T14:43:38.235831942-04:00
 imports:
 - name: github.com/blang/semver
   version: aea32c919a18e5ef4537bbd283ff29594b1b0165
@@ -11,6 +11,14 @@ imports:
   - client
 - name: github.com/fatih/color
   version: 533cd7fd8a85905f67a1753afb4deddc85ea174f
+- name: github.com/google/go-github
+  version: f8cebc8ad645ff0e5df4ffc1059f644c3cb99b1c
+  subpackages:
+  - github
+- name: github.com/google/go-querystring
+  version: 9235644dd9e52eeae6fa48efd539fdc351a0af53
+  subpackages:
+  - query
 - name: github.com/hashicorp/hcl
   version: 27a57f2605e04995c111273c263d51cee60d9bc4
   subpackages:
@@ -39,7 +47,7 @@ imports:
 - name: github.com/mattn/go-runewidth
   version: d6bea18f789704b5f83375793155289da36a3c7f
 - name: github.com/mattn/go-sqlite3
-  version: 37aa7c6f5bc95b7264de70cd1f0ca1d39228ebd6
+  version: aeb3180df56de252b6cfcd64985272010c920ab7
 - name: github.com/mitchellh/mapstructure
   version: d2dd0262208475919e1a362f675cfc0e7c10e905
 - name: github.com/olekukonko/tablewriter
@@ -54,12 +62,14 @@ imports:
   version: 8f6a28b0916586e7f22fe931ae2fcfc380b1c0e6
 - name: github.com/spf13/viper
   version: c975dc1b4eacf4ec7fdbf0873638de5d090ba323
+- name: golang.org/x/oauth2
+  version: 7e9cd5d59563851383f8f81a7fbb01213709387c
 - name: golang.org/x/sys
-  version: 324e1375807370c3934e14f3a97e7d160832f6b4
+  version: f64b50fbea64174967a8882830d621a18ee1548e
   subpackages:
   - unix
 - name: gopkg.in/fsnotify.v1
-  version: 875cf421b32f8f1b31bd43776297876d01542279
+  version: 836bfd95fecc0f1511dd66bdbf2b5b61ab8b00b6
 - name: gopkg.in/yaml.v2
   version: a83829b6f1293c91addabc89d0571c246397bbf4
 devImports: []

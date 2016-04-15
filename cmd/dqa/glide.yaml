@@ -9,3 +9,7 @@ import:
 - package: github.com/olekukonko/tablewriter
 - package: github.com/spf13/cobra
 - package: github.com/spf13/viper
+- package: github.com/google/go-github
+  subpackages:
+  - github
+- package: golang.org/x/oauth2

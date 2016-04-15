@@ -3,9 +3,59 @@ package results
 import (
 	"encoding/csv"
 	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 
 	"github.com/PEDSnet/tools/cmd/dqa/uni"
 )
+
+// ReadFromDir reads all files in a directory and returns reports for each.
+func ReadFromDir(dir string) (map[string]*File, error) {
+	fns, err := ioutil.ReadDir(dir)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		path string
+		f    *os.File
+	)
+
+	reports := make(map[string]*File)
+
+	// Iterate over each CSV file in the directory.
+	for _, fi := range fns {
+		if fi.IsDir() {
+			continue
+		}
+
+		if filepath.Ext(fi.Name()) != ".csv" {
+			continue
+		}
+
+		path = filepath.Join(dir, fi.Name())
+
+		if f, err = os.Open(path); err != nil {
+			return nil, err
+		}
+
+		report := &File{}
+		reports[fi.Name()] = report
+
+		_, err := report.Read(f)
+
+		f.Close()
+
+		// Presumably not a valid file.
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return reports, nil
+}
 
 // Reader reads a DQA exposing a header with mapped positions
 // to the field.
@@ -58,11 +108,11 @@ func (r *Reader) Read() (*Result, error) {
 }
 
 // ReadAll reads all results from the reader.
-func (r *Reader) ReadAll() ([]*Result, error) {
+func (cr *Reader) ReadAll() ([]*Result, error) {
 	var results []*Result
 
 	for {
-		r, err := r.Read()
+		r, err := cr.Read()
 
 		if err == io.EOF {
 			break
