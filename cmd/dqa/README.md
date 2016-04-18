@@ -59,10 +59,33 @@ $ pedsnet-dqa assign-rank-to-issues --dryrun --token=abc123 ./ETLv4
 
 ## Site Feedback
 
-The `generate-feedback-for-sites` command outputs a Markdown file with the list of issues for a set of results. The output is written to stdout, so it should be redirected to a file to save it.
+The `generate-feedback-for-sites` command creates GitHub issues for each field-level issue and a general issue containing a summary of all issues for the cycle.
+
+Running the following command will validate the issues and print a summary of those that will be created:
 
 ```
-$ pedsnet-dqa generate-feedback-for-sites ./ETLv4 > CHOP_ETLv4.md
+$ pedsnet-dqa generate-feedback-for-sites --cycle="April 2016" ./CHOP/ETLv8
+7 issues found in 'observation.csv'
+1 issues found in 'person.csv'
+9 issues found in 'procedure_occurrence.csv'
+1 issues found in 'visit_payer.csv'
+15 issues found in 'drug_exposure.csv'
+8 issues found in 'condition_occurrence.csv'
+1 issues found in 'location.csv'
+14 issues found in 'measurement.csv'
+8 issues found in 'visit_occurrence.csv'
+1 issues found in 'care_site.csv'
+1 issues found in 'fact_relationship.csv'
+2 issues found in 'measurement_organism.csv'
+No new issues for 'observation_period.csv'
+```
+
+To post the feedback to GitHub, the GitHub `--token` option must be supplied and the flag `--post` to explicitly post to GitHub. This will create issues in GitHub for fields that do not already have a GitHub ID associated with it (for example from a previous data cycle) and update the CSV files with the GitHub IDs.
+
+*Note: Since this changes the CSV files, they should be saved prior to running the command and ideally committed to git.*
+
+```
+$ pedsnet-dqa generate-feedback-for-sites --cycle="April 2016" --token=abc123 --post ./CHOP/ETLv8
 ```
 
 ## Query Issues
