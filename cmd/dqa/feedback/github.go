@@ -44,11 +44,12 @@ func (gr *GithubReport) BuildSummaryIssue() (*github.IssueRequest, error) {
 
 	res := f.Results[0]
 
-	title := fmt.Sprintf("DQA: %s (%s) for PEDSnet CDM v%s", gr.DataCycle, gr.ETLVersion, res.ModelVersion)
+	title := fmt.Sprintf("DQA Summary: %s (%s) for PEDSnet CDM v%s", gr.DataCycle, gr.ETLVersion, res.ModelVersion)
 	body := buf.String()
 	labels := []string{
 		"Data Quality",
 		fmt.Sprintf("Data Cycle: %s", gr.DataCycle),
+		"Data Quality Summary",
 	}
 
 	ir := github.IssueRequest{
