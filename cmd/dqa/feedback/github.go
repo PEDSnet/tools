@@ -5,6 +5,7 @@ package feedback
 import (
 	"bytes"
 	"fmt"
+	"strings"
 
 	"golang.org/x/oauth2"
 
@@ -28,6 +29,36 @@ type GithubReport struct {
 
 func (gr *GithubReport) Len() int {
 	return len(gr.results)
+}
+
+// Fetch a DQA summary issue using labels.
+func (gr *GithubReport) FetchSummaryIssue(ir *github.IssueRequest) (*github.Issue, error) {
+	opts := &github.IssueListByRepoOptions{
+		State:  "all",
+		Labels: *ir.Labels,
+	}
+
+	issues, _, err := gr.client.Issues.ListByRepo(repoOwner, gr.Site, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(issues) == 1 {
+		return &issues[0], nil
+	}
+
+	if len(issues) > 1 {
+		// List of URLs to inspect.
+		urls := make([]string, len(issues))
+
+		for i, issue := range issues {
+			urls[i] = fmt.Sprintf("- %s", issue.HTMLURL)
+		}
+
+		return nil, fmt.Errorf("Multiple issues match:\n%s", strings.Join(urls, "\n"))
+	}
+
+	return nil, nil
 }
 
 func (gr *GithubReport) BuildSummaryIssue() (*github.IssueRequest, error) {
@@ -61,7 +92,7 @@ func (gr *GithubReport) BuildSummaryIssue() (*github.IssueRequest, error) {
 	return &ir, nil
 }
 
-func (gr *GithubReport) NewIssue(r *results.Result) (*github.IssueRequest, error) {
+func (gr *GithubReport) BuildIssue(r *results.Result) (*github.IssueRequest, error) {
 	if r.SiteName() != gr.Site || r.ETLVersion() != gr.ETLVersion {
 		return nil, fmt.Errorf("Result site or ETL version does not match reports")
 	}
@@ -97,6 +128,17 @@ func (gr *GithubReport) NewIssue(r *results.Result) (*github.IssueRequest, error
 	gr.results = append(gr.results, r)
 
 	return &ir, nil
+}
+
+// Ensure the minimum labels are set on the issue.
+func (gr *GithubReport) EnsureLabels(num int, labels []string) ([]github.Label, error) {
+	allLabels, _, err := gr.client.Issues.AddLabelsToIssue(repoOwner, gr.Site, num, labels)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return allLabels, nil
 }
 
 // PostIssue sends a request to the GitHub API to create an issue.

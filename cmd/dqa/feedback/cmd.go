@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/PEDSnet/tools/cmd/dqa/results"
 	"github.com/spf13/cobra"
@@ -46,8 +47,6 @@ var Cmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// TODO: check if a summary has already been created.
-
 		gr := NewGitHubReport("", "", dataCycle, token)
 
 		// Iterate over each file and incrementally post the issues.
@@ -55,6 +54,8 @@ var Cmd = &cobra.Command{
 			var newIssues results.Results
 
 			for _, result := range file.Results {
+
+				// This is a bit weird, but the site and ETL version are set using the result.
 				if gr.Site == "" {
 					gr.Site = result.SiteName()
 					gr.ETLVersion = result.ETLVersion()
@@ -67,9 +68,9 @@ var Cmd = &cobra.Command{
 
 				newIssues = append(newIssues, result)
 
-				ir, err := gr.NewIssue(result)
+				ir, err := gr.BuildIssue(result)
 				if err != nil {
-					cmd.Printf("Error creating issue request: %s\n", err)
+					cmd.Printf("Error building issue request: %s\n", err)
 					os.Exit(1)
 				}
 
@@ -83,6 +84,18 @@ var Cmd = &cobra.Command{
 						}
 
 						result.GithubID = fmt.Sprintf("%d", *issue.Number)
+					} else {
+						num, err := strconv.Atoi(result.GithubID)
+						if err != nil {
+							cmd.Printf("Error converting GithubID %s to integer: %s", result.GithubID, err)
+							continue
+						}
+
+						_, err = gr.EnsureLabels(num, *ir.Labels)
+						if err != nil {
+							cmd.Printf("Error setting labels on issue #%s\n: %s", num, err)
+							continue
+						}
 					}
 				}
 			}
@@ -137,17 +150,32 @@ var Cmd = &cobra.Command{
 			return
 		}
 
-		// Build the file summary issue and post it.
+		// Build the summary issue.
 		ir, err := gr.BuildSummaryIssue()
+
 		if err != nil {
 			cmd.Printf("Error building summary issue: %s\n", err)
 			cmd.Println("Note: This can be safely retried without duplicating issues.")
 			os.Exit(1)
 		}
 
+		// Check if a summary issue already exists for this site + data cycle.
+		issue, err := gr.FetchSummaryIssue(ir)
+		if err != nil {
+			cmd.Printf("Error fetching summary issue from GitHub: %s\n", err)
+			os.Exit(1)
+		}
+
+		// No summary issue found.
+		if issue == nil {
+			cmd.Printf("No summary issue found.")
+		} else {
+			cmd.Printf("Summary issue already exists: %s\n", *issue.HTMLURL)
+		}
+
 		if !post || printSummary {
 			fmt.Println(*ir.Body)
-		} else {
+		} else if issue == nil {
 			issue, err := gr.PostIssue(ir)
 			if err != nil {
 				cmd.Printf("Error posting summary issue to GitHub: %s\n", err)
