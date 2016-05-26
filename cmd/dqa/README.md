@@ -59,12 +59,16 @@ $ pedsnet-dqa assign-rank-to-issues --dryrun --token=abc123 ./ETLv4
 
 ## Site Feedback
 
-The `generate-feedback-for-sites` command creates GitHub issues for each field-level issue and a general issue containing a summary of all issues for the cycle.
+The `feedback` command contains two subcommands for generating new feedback and synchronizing it from GitHub issues.
+
+### Generate
+
+The `generate` subcommand creates GitHub issues for each field-level issue and a general issue containing a summary of all issues for the cycle.
 
 Running the following command will validate the issues and print a summary of those that will be created:
 
 ```
-$ pedsnet-dqa generate-feedback-for-sites --cycle="April 2016" ./CHOP/ETLv8
+$ pedsnet-dqa feedback generate --cycle="April 2016" ./CHOP/ETLv8
 7 issues found in 'observation.csv'
 1 issues found in 'person.csv'
 9 issues found in 'procedure_occurrence.csv'
@@ -85,7 +89,15 @@ To post the feedback to GitHub, the GitHub `--token` option must be supplied and
 *Note: Since this changes the CSV files, they should be saved prior to running the command and ideally committed to git.*
 
 ```
-$ pedsnet-dqa generate-feedback-for-sites --cycle="April 2016" --token=abc123 --post ./CHOP/ETLv8
+$ pedsnet-dqa feedback generate --cycle="April 2016" --token=abc123 --post ./CHOP/ETLv8
+```
+
+### Sync
+
+As issues are addressed on GitHub, the `Cause` and `Status` labels may be adjusted. To keep parity between the CSV files and GitHub issues, the `sync` command can be used to pull labels and update the CSV files.
+
+```
+$ pedsnet-dqa feedback sync --cycle="April 2016" --token=abc123 ./CHOP/ETLv8
 ```
 
 ## Query Issues

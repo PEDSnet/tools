@@ -181,6 +181,10 @@ func (r *Result) Row() []string {
 	}
 }
 
+func (r *Result) String() string {
+	return fmt.Sprintf("%s.%s (%s)", r.Table, r.Field, r.Goal)
+}
+
 func (r *Result) IsIssue() bool {
 	return !r.IsPersistent() && r.IssueCode != ""
 }

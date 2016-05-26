@@ -13,7 +13,36 @@ import (
 	"github.com/google/go-github/github"
 )
 
-const repoOwner = "PEDSnet"
+const (
+	repoOwner = "PEDSnet"
+
+	dataQualityLabel        = "Data Quality"
+	dataQualitySummaryLabel = "Data Quality Summary"
+)
+
+var (
+	// Labels that require a string.
+	dataCycleLabel = Labeler("Data Cycle")
+	tableLabel     = Labeler("Table")
+	rankLabel      = Labeler("Rank")
+	causeLabel     = Labeler("Cause")
+	statusLabel    = Labeler("Status")
+)
+
+func Labeler(p string) func(interface{}) string {
+	return func(v interface{}) string {
+		return fmt.Sprintf("%s: %s", p, v)
+	}
+}
+
+func ParseLabel(l string) (string, string, error) {
+	toks := strings.SplitN(l, ": ", 2)
+	if len(toks) != 2 {
+		return "", "", fmt.Errorf("Could not parse label `%s`", l)
+	}
+
+	return toks[0], toks[1], nil
+}
 
 type GithubReport struct {
 	Site       string
@@ -31,7 +60,7 @@ func (gr *GithubReport) Len() int {
 	return len(gr.results)
 }
 
-// Fetch a DQA summary issue using labels.
+// FetchSummaryIssues fetches the DQA summary issue.
 func (gr *GithubReport) FetchSummaryIssue(ir *github.IssueRequest) (*github.Issue, error) {
 	opts := &github.IssueListByRepoOptions{
 		State:  "all",
@@ -61,6 +90,42 @@ func (gr *GithubReport) FetchSummaryIssue(ir *github.IssueRequest) (*github.Issu
 	return nil, nil
 }
 
+// FetchIssues fetches all issues for this site and data cyle.
+func (gr *GithubReport) FetchIssues() ([]github.Issue, error) {
+	labels := []string{
+		dataQualityLabel,
+		dataCycleLabel(gr.DataCycle),
+	}
+
+	opts := &github.IssueListByRepoOptions{
+		State:  "all",
+		Labels: labels,
+		ListOptions: github.ListOptions{
+			PerPage: 100,
+		},
+	}
+
+	var issues []github.Issue
+
+	for {
+		page, resp, err := gr.client.Issues.ListByRepo(repoOwner, gr.Site, opts)
+		if err != nil {
+			return nil, err
+		}
+
+		issues = append(issues, page...)
+
+		if resp.NextPage == 0 {
+			break
+		}
+
+		opts.Page = resp.NextPage
+	}
+
+	return issues, nil
+}
+
+// BuildSummaryIssue builds a new issue requeset for the summary issue for this data cycle.
 func (gr *GithubReport) BuildSummaryIssue() (*github.IssueRequest, error) {
 	f := &results.File{
 		Results: gr.results,
@@ -78,9 +143,9 @@ func (gr *GithubReport) BuildSummaryIssue() (*github.IssueRequest, error) {
 	title := fmt.Sprintf("DQA Summary: %s (%s) for PEDSnet CDM v%s", gr.DataCycle, gr.ETLVersion, res.ModelVersion)
 	body := buf.String()
 	labels := []string{
-		"Data Quality",
-		fmt.Sprintf("Data Cycle: %s", gr.DataCycle),
-		"Data Quality Summary",
+		dataQualityLabel,
+		dataQualitySummaryLabel,
+		dataCycleLabel(gr.DataCycle),
 	}
 
 	ir := github.IssueRequest{
@@ -92,6 +157,7 @@ func (gr *GithubReport) BuildSummaryIssue() (*github.IssueRequest, error) {
 	return &ir, nil
 }
 
+// BuildIssue builds a new issue request based on the result issue.
 func (gr *GithubReport) BuildIssue(r *results.Result) (*github.IssueRequest, error) {
 	if r.SiteName() != gr.Site || r.ETLVersion() != gr.ETLVersion {
 		return nil, fmt.Errorf("Result site or ETL version does not match reports")
@@ -101,21 +167,21 @@ func (gr *GithubReport) BuildIssue(r *results.Result) (*github.IssueRequest, err
 	body := fmt.Sprintf("**Description**: %s\n**Finding**: %s", r.IssueDescription, r.Finding)
 
 	labels := []string{
-		"Data Quality",
-		fmt.Sprintf("Data Cycle: %s", gr.DataCycle),
-		fmt.Sprintf("Table: %s", r.Table),
+		dataQualityLabel,
+		dataCycleLabel(gr.DataCycle),
+		tableLabel(r.Table),
 	}
 
 	if r.Rank > 0 {
-		labels = append(labels, fmt.Sprintf("Rank: %s", r.Rank))
+		labels = append(labels, rankLabel(r.Rank))
 	}
 
 	if r.Cause != "" {
-		labels = append(labels, fmt.Sprintf("Cause: %s", r.Cause))
+		labels = append(labels, causeLabel(r.Cause))
 	}
 
 	if r.Status != "" {
-		labels = append(labels, fmt.Sprintf("Status: %s", r.Status))
+		labels = append(labels, statusLabel(r.Status))
 	}
 
 	// All fields are pointers.
