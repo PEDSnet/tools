@@ -5,19 +5,28 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/PEDSnet/tools/cmd/dqa/results"
+	"github.com/google/go-github/github"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 var Cmd = &cobra.Command{
-	Use: "generate-feedback-for-sites <path>",
+	Use: "feedback",
 
-	Short: "Generates a Markdown report of issues found in DQA results.",
+	Short: "Top-level command for feedback subcommands.",
 
-	Example: `
-  pedsnet-dqa generate-feedback-for-sites --token=abc123 SecondaryReports/CHOP/ETLv4`,
+	Example: `pedsnet-dqa feedback generate [...]`,
+}
+
+var SyncCmd = &cobra.Command{
+	Use: "sync <path>",
+
+	Short: "Syncs Cause and Status labels from GitHub to the local CSV files.",
+
+	Example: `pedsnet-dqa feedback sync --token=abc123 --cycle="April 2016"  SecondaryReports/CHOP/ETLv8`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) < 1 {
@@ -25,10 +34,156 @@ var Cmd = &cobra.Command{
 			os.Exit(0)
 		}
 
-		post := viper.GetBool("feedback.post")
 		token := viper.GetString("feedback.token")
 		dataCycle := viper.GetString("feedback.cycle")
-		printSummary := viper.GetBool("feedback.print-summary")
+
+		if dataCycle == "" {
+			cmd.Println("The data cycle could not be detected. Please supply it using the --cycle option.")
+			os.Exit(1)
+		}
+
+		if token == "" {
+			cmd.Println("A token is required to access GitHub.")
+			os.Exit(1)
+		}
+
+		dir := args[0]
+		files, err := results.ReadFromDir(dir)
+		if err != nil {
+			cmd.Printf("Error reading files in '%s'\n", err)
+			os.Exit(1)
+		}
+
+		gr := NewGitHubReport("", "", dataCycle, token)
+
+		issuesById := make(map[int]github.Issue)
+
+		// Iterate over each file and incrementally post the issues.
+		for name, file := range files {
+			var causeChanges, statusChanges int
+
+			for _, result := range file.Results {
+				if gr.Site == "" {
+					// This is a bit weird, but the site and ETL version are set using the result.
+					gr.Site = result.SiteName()
+					gr.ETLVersion = result.ETLVersion()
+
+					issues, err := gr.FetchIssues()
+					if err != nil {
+						cmd.Printf("Error fetching issues: %s\n", err)
+						os.Exit(1)
+					}
+
+					for _, issue := range issues {
+						issuesById[*issue.Number] = issue
+					}
+
+					cmd.Printf("Fetched %d issues.\n", len(issuesById))
+				}
+
+				if result.GithubID == "" {
+					continue
+				}
+
+				id, err := strconv.Atoi(result.GithubID)
+				if err != nil {
+					cmd.Printf("Invalid GitHub ID: `%s`\n", result.GithubID)
+					os.Exit(1)
+				}
+
+				issue, ok := issuesById[id]
+				if !ok {
+					cmd.Printf("GitHub issue %d exists, but result does not?\n", id)
+					os.Exit(1)
+				}
+
+				var status, cause string
+
+				for _, label := range issue.Labels {
+					kind, value, err := ParseLabel(*label.Name)
+					if err != nil {
+						continue
+					}
+
+					switch strings.ToLower(kind) {
+					case "status":
+						if status != "" {
+							cmd.Printf("Duplicate Status label on issue %d. Remove it and re-run.\n", issue.Number)
+							os.Exit(1)
+						}
+
+						status = value
+
+					case "cause":
+						if cause != "" {
+							cmd.Printf("Duplicate Cause label on issue %d. Remove it and re-run.\n", issue.Number)
+							os.Exit(1)
+						}
+
+						cause = value
+					}
+				}
+
+				if cause != result.Cause {
+					fmt.Printf("Changing %s cause %s -> %s\n", result, result.Cause, cause)
+					result.Cause = cause
+					causeChanges++
+				}
+
+				if status != result.Status {
+					fmt.Printf("Changing %s status %s -> %s\n", result, result.Status, status)
+					result.Status = status
+					statusChanges++
+				}
+			}
+
+			// Nothing to do.
+			if causeChanges == 0 && statusChanges == 0 {
+				cmd.Printf("No changes to sync for '%s'.\n", name)
+				continue
+			}
+
+			// File opened successfully.
+			f, err := os.Create(filepath.Join(dir, name))
+			if err != nil {
+				cmd.Printf("Error opening file to write issue IDs: %s\n", err)
+				os.Exit(1)
+			}
+			defer f.Close()
+			w := results.NewWriter(f)
+
+			if err := w.WriteAll(file.Results); err != nil {
+				cmd.Printf("Error writing results to file.")
+				os.Exit(1)
+			}
+
+			if err := w.Flush(); err != nil {
+				cmd.Printf("Error flushing results to file.")
+				os.Exit(1)
+			}
+
+			cmd.Printf("Synced labels to '%s'.\n", name)
+		}
+	},
+}
+
+var GenerateCmd = &cobra.Command{
+	Use: "generate <path>",
+
+	Short: "Generates and posts a set of issues to GitHub.",
+
+	Example: `pedsnet-dqa feedback generate --post --token=abc123 --cycle="April 2016" SecondaryReports/CHOP/ETLv8`,
+
+	Run: func(cmd *cobra.Command, args []string) {
+		if len(args) < 1 {
+			cmd.Usage()
+			os.Exit(0)
+		}
+
+		token := viper.GetString("feedback.token")
+		dataCycle := viper.GetString("feedback.cycle")
+		post := viper.GetBool("feedback.generate.post")
+		printSummary := viper.GetBool("feedback.generate.print-summary")
 
 		if dataCycle == "" {
 			cmd.Println("The data cycle could not be detected. Please supply it using the --cycle option.")
@@ -146,7 +301,7 @@ var Cmd = &cobra.Command{
 		}
 
 		if gr.Len() == 0 {
-			fmt.Println("No issues to report.")
+			cmd.Println("No issues to report.")
 			return
 		}
 
@@ -183,23 +338,29 @@ var Cmd = &cobra.Command{
 				os.Exit(1)
 			}
 
-			fmt.Printf("Summary issue URL: %s\n", *issue.HTMLURL)
+			cmd.Printf("Summary issue URL: %s\n", *issue.HTMLURL)
 		}
 	},
 }
 
 func init() {
-	flags := Cmd.Flags()
+	Cmd.AddCommand(GenerateCmd)
+	Cmd.AddCommand(SyncCmd)
 
-	// Define the flags.
-	flags.Bool("post", false, "Posts the issues to GitHub.")
-	flags.String("token", "", "Token used to authenticate with GitHub.")
-	flags.String("cycle", "", "The data cycle for this report.")
-	flags.Bool("print-summary", false, "Print the summary to stdout rather than posting it.")
+	pflags := Cmd.PersistentFlags()
 
-	// Bind them to configuration.
-	viper.BindPFlag("feedback.post", flags.Lookup("post"))
-	viper.BindPFlag("feedback.token", flags.Lookup("token"))
-	viper.BindPFlag("feedback.cycle", flags.Lookup("cycle"))
-	viper.BindPFlag("feedback.print-summary", flags.Lookup("print-summary"))
+	pflags.String("token", "", "Token used to authenticate with GitHub.")
+	pflags.String("cycle", "", "The data cycle for this report.")
+
+	viper.BindPFlag("feedback.cycle", pflags.Lookup("cycle"))
+	viper.BindPFlag("feedback.token", pflags.Lookup("token"))
+
+	// Generate flags.
+	gflags := GenerateCmd.Flags()
+
+	gflags.Bool("post", false, "Posts the issues to GitHub.")
+	gflags.Bool("print-summary", false, "Print the summary to stdout rather than posting it.")
+
+	viper.BindPFlag("feedback.generate.post", gflags.Lookup("post"))
+	viper.BindPFlag("feedback.generate.print-summary", gflags.Lookup("print-summary"))
 }
