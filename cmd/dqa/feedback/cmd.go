@@ -229,8 +229,8 @@ var GenerateCmd = &cobra.Command{
 					os.Exit(1)
 				}
 
-				// Only post if it does not already have a GitHub ID.
 				if post {
+					// New issue.
 					if result.GithubID == "" {
 						issue, err := gr.PostIssue(ir)
 						if err != nil {
@@ -239,17 +239,56 @@ var GenerateCmd = &cobra.Command{
 						}
 
 						result.GithubID = fmt.Sprintf("%d", *issue.Number)
+
+						// Existing issue that should be tagged with the new label
+						// and re-opened.
 					} else {
 						num, err := strconv.Atoi(result.GithubID)
 						if err != nil {
-							cmd.Printf("Error converting GithubID %s to integer: %s", result.GithubID, err)
+							cmd.Printf("Error converting GithubID #%s to integer: %s", result.GithubID, err)
 							continue
 						}
 
-						_, err = gr.EnsureLabels(num, *ir.Labels)
+						issue, err := gr.FetchIssue(num)
 						if err != nil {
-							cmd.Printf("Error setting labels on issue #%s\n: %s", num, err)
-							continue
+							cmd.Printf("Error fetching issue #%d:\n%s", num, err)
+						}
+
+						var sameDataCycle bool
+
+						// Compare new labels, if one has changed, then re-open and update.
+						for _, label := range issue.Labels {
+							kind, value, err := ParseLabel(*label.Name)
+							if err != nil {
+								continue
+							}
+
+							if kind == "Data Cycle" {
+								if value == gr.DataCycle {
+									sameDataCycle = true
+									break
+								}
+							}
+						}
+
+						// Different data cycle, so reopen and add the new label.
+						if !sameDataCycle {
+							if *issue.State == "closed" {
+								err := gr.OpenIssue(num)
+								if err != nil {
+									cmd.Printf("Error opening issue #%d:\n%s", num, err)
+									continue
+								}
+							}
+
+							_, err = gr.AddLabels(num, []string{
+								dataCycleLabel(gr.DataCycle),
+							})
+
+							if err != nil {
+								cmd.Printf("Error adding Data Cycle label on issue #%s:\n%s", num, err)
+								continue
+							}
 						}
 					}
 				}
@@ -323,7 +362,7 @@ var GenerateCmd = &cobra.Command{
 
 		// No summary issue found.
 		if issue == nil {
-			cmd.Printf("No summary issue found.")
+			cmd.Println("No summary issue found.")
 		} else {
 			cmd.Printf("Summary issue already exists: %s\n", *issue.HTMLURL)
 		}

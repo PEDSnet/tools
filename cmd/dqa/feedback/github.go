@@ -125,6 +125,30 @@ func (gr *GithubReport) FetchIssues() ([]github.Issue, error) {
 	return issues, nil
 }
 
+// FetchIssue fetches an issue by id.
+func (gr *GithubReport) FetchIssue(id int) (*github.Issue, error) {
+	issue, _, err := gr.client.Issues.Get(repoOwner, gr.Site, id)
+	if err != nil {
+		return nil, err
+	}
+	return issue, nil
+}
+
+func (gr *GithubReport) OpenIssue(id int) error {
+	state := "open"
+
+	ir := &github.IssueRequest{
+		State: &state,
+	}
+
+	_, _, err := gr.client.Issues.Edit(repoOwner, gr.Site, id, ir)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // BuildSummaryIssue builds a new issue requeset for the summary issue for this data cycle.
 func (gr *GithubReport) BuildSummaryIssue() (*github.IssueRequest, error) {
 	f := &results.File{
@@ -196,8 +220,8 @@ func (gr *GithubReport) BuildIssue(r *results.Result) (*github.IssueRequest, err
 	return &ir, nil
 }
 
-// Ensure the minimum labels are set on the issue.
-func (gr *GithubReport) EnsureLabels(num int, labels []string) ([]github.Label, error) {
+// AddLabels the minimum labels are set on the issue.
+func (gr *GithubReport) AddLabels(num int, labels []string) ([]github.Label, error) {
 	allLabels, _, err := gr.client.Issues.AddLabelsToIssue(repoOwner, gr.Site, num, labels)
 
 	if err != nil {
