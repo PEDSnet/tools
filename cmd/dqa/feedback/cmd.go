@@ -108,7 +108,7 @@ var SyncCmd = &cobra.Command{
 					switch strings.ToLower(kind) {
 					case "status":
 						if status != "" {
-							cmd.Printf("Duplicate Status label on issue %d. Remove it and re-run.\n", issue.Number)
+							cmd.Printf("Duplicate Status label on issue %s. Remove it and re-run.\n", *issue.HTMLURL)
 							os.Exit(1)
 						}
 
@@ -116,7 +116,7 @@ var SyncCmd = &cobra.Command{
 
 					case "cause":
 						if cause != "" {
-							cmd.Printf("Duplicate Cause label on issue %d. Remove it and re-run.\n", issue.Number)
+							cmd.Printf("Duplicate Cause label on issue %s. Remove it and re-run.\n", *issue.HTMLURL)
 							os.Exit(1)
 						}
 
