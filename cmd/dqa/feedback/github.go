@@ -125,6 +125,12 @@ func (gr *GithubReport) FetchIssues() ([]github.Issue, error) {
 	return issues, nil
 }
 
+func (gr *GithubReport) CreateComment(id int, body string) error {
+	c := github.IssueComment{Body: &body}
+	_, _, err := gr.client.Issues.CreateComment(repoOwner, gr.Site, id, &c)
+	return err
+}
+
 // FetchIssue fetches an issue by id.
 func (gr *GithubReport) FetchIssue(id int) (*github.Issue, error) {
 	issue, _, err := gr.client.Issues.Get(repoOwner, gr.Site, id)

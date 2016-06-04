@@ -286,7 +286,14 @@ var GenerateCmd = &cobra.Command{
 							})
 
 							if err != nil {
-								cmd.Printf("Error adding Data Cycle label on issue #%s:\n%s", num, err)
+								cmd.Printf("Error adding Data Cycle label on issue #%d:\n%s", num, err)
+								continue
+							}
+
+							body := fmt.Sprintf("Latest finding: %s", result.Finding)
+							err = gr.CreateComment(num, body)
+							if err != nil {
+								cmd.Printf("Error creating `Latest finding` comment on issue #%d:\n%s", num, err)
 								continue
 							}
 						}
