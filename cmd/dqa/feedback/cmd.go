@@ -252,6 +252,7 @@ var GenerateCmd = &cobra.Command{
 						issue, err := gr.FetchIssue(num)
 						if err != nil {
 							cmd.Printf("Error fetching issue #%d:\n%s", num, err)
+							continue
 						}
 
 						var sameDataCycle bool
