@@ -81,7 +81,7 @@ var SyncCmd = &cobra.Command{
 					cmd.Printf("Fetched %d issues.\n", len(issuesById))
 				}
 
-				if result.GithubID == "" {
+				if !result.IsIssue() || result.GithubID == "" {
 					continue
 				}
 
@@ -93,7 +93,7 @@ var SyncCmd = &cobra.Command{
 
 				issue, ok := issuesById[id]
 				if !ok {
-					cmd.Printf("GitHub issue %d exists, but result does not?\n", id)
+					cmd.Printf("Github issue %d is being referenced, but was not found on GitHub.\n", id)
 					os.Exit(1)
 				}
 
