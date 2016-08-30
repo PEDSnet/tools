@@ -20,6 +20,26 @@ Wrote files to 'ETLv4' for model 'pedsnet/2.0.0'
 Copied persistent issues from 'ETLv3'
 ```
 
+## Merge Issues
+
+The `merge-issues` command reads issues from a separate CSV file produced some external process (e.g. R scripts) and written to the corresponding secondary report file. The input file must be a valid CSV file with the following fields in the header:
+
+- `data_version`
+- `table`
+- `field`
+- `issue_code`
+- `issue_description`
+- `finding`
+- `prevalence`
+
+Each row is added to existing secondary report unless the secondary report already contains an record for the same `table`, `field`, and `issue_code`. In this case a conflict warning is printed to the console for the user to handle manually.
+
+To run, use the `merge-issues` subcommand. The first argument is the secondary report directory. The remaining arguments are the files containing the issues to be merged.
+
+```
+$ pedsnet-dqa merge-issues ./ETLv9 care_site_issues.csv measurement_issues.csv
+```
+
 ## Rank Issues
 
 The `assign-rank-to-issues` command assigns a rank to issues based on a set of pre-determined rules. The set of rules are listed maintained [here](https://github.com/PEDSnet/Data-Quality/tree/master/SecondaryReports/Ranking). The rules are fetched dynamically which requires authorization against the repository (since it is private). This is done by supplying a [GitHub access token](https://help.github.com/articles/creating-an-access-token-for-command-line-use/) with the `--token` option.
