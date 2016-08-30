@@ -56,7 +56,7 @@ var SyncCmd = &cobra.Command{
 
 		gr := NewGitHubReport("", "", dataCycle, token)
 
-		issuesById := make(map[int]github.Issue)
+		issuesById := make(map[int]*github.Issue)
 
 		// Iterate over each file and incrementally post the issues.
 		for name, file := range files {

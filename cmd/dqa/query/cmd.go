@@ -45,7 +45,7 @@ Read from a file:
 
 		// Read the SQL from stdin
 		if stmt == "-" {
-			printHeader(cmd.Out())
+			printHeader(cmd.OutOrStdout())
 
 			b, err := ioutil.ReadAll(os.Stdin)
 

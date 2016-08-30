@@ -73,7 +73,7 @@ func (gr *GithubReport) FetchSummaryIssue(ir *github.IssueRequest) (*github.Issu
 	}
 
 	if len(issues) == 1 {
-		return &issues[0], nil
+		return issues[0], nil
 	}
 
 	if len(issues) > 1 {
@@ -91,7 +91,7 @@ func (gr *GithubReport) FetchSummaryIssue(ir *github.IssueRequest) (*github.Issu
 }
 
 // FetchIssues fetches all issues for this site and data cyle.
-func (gr *GithubReport) FetchIssues() ([]github.Issue, error) {
+func (gr *GithubReport) FetchIssues() ([]*github.Issue, error) {
 	labels := []string{
 		dataQualityLabel,
 		dataCycleLabel(gr.DataCycle),
@@ -105,7 +105,7 @@ func (gr *GithubReport) FetchIssues() ([]github.Issue, error) {
 		},
 	}
 
-	var issues []github.Issue
+	var issues []*github.Issue
 
 	for {
 		page, resp, err := gr.client.Issues.ListByRepo(repoOwner, gr.Site, opts)
@@ -227,7 +227,7 @@ func (gr *GithubReport) BuildIssue(r *results.Result) (*github.IssueRequest, err
 }
 
 // AddLabels the minimum labels are set on the issue.
-func (gr *GithubReport) AddLabels(num int, labels []string) ([]github.Label, error) {
+func (gr *GithubReport) AddLabels(num int, labels []string) ([]*github.Label, error) {
 	allLabels, _, err := gr.client.Issues.AddLabelsToIssue(repoOwner, gr.Site, num, labels)
 
 	if err != nil {
