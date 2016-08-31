@@ -43,7 +43,7 @@ var FileHeaderFields = []string{
 	"Cause",
 	"Status",
 	"Reviewer",
-	"Github ID",
+	"GithubID",
 }
 
 // FileHeader stores the column position for each field.
@@ -126,7 +126,7 @@ func ParseFileHeader(row []string) (*FileHeader, error) {
 			h.Status = i
 		case "reviewer":
 			h.Reviewer = i
-		case "github_id":
+		case "github_id", "githubid":
 			h.GithubID = i
 		default:
 			return nil, fmt.Errorf("invalid column: %s", row[i])

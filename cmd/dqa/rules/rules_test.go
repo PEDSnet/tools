@@ -33,7 +33,7 @@ table,field,issue code,prevalence,rank
 "in (condition_occurrence, visit_payer)",is primary key,G4-001,full,High
 visit_payer,is source value,G2-013,"in (medium, high, low)",High
 "visit_payer",is date/year,G2-002,unknown,High
-"visit_payer","in (provider_id, care_site_id)",G2-013,"in (high, low)",Medium
+"visit_payer","in (plan_type, plan_class)",G2-013,"in (high, low)",Medium
 "visit_payer","is concept id",G3-002,-,Medium
 "visit_payer","is other",G3-002,-,Medium
 "visit_payer","is date/year/time",G2-002,-,Low
@@ -115,7 +115,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 				Condition: &Condition{
 					Test: func(r *results.Result) bool {
 						switch r.Field {
-						case "provider_id", "care_site_id":
+						case "plan_type", "plan_class":
 							return true
 						}
 						return false
@@ -125,7 +125,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 				Prevalence: "high",
 				Rank:       results.MediumRank,
 			},
-			"provider_id",
+			"plan_type",
 		},
 		{
 			Rule{
@@ -133,7 +133,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 				Condition: &Condition{
 					Test: func(r *results.Result) bool {
 						switch r.Field {
-						case "provider_id", "care_site_id":
+						case "plan_type", "plan_class":
 							return true
 						}
 						return false
@@ -143,7 +143,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 				Prevalence: "low",
 				Rank:       results.MediumRank,
 			},
-			"care_site_id",
+			"plan_class",
 		},
 
 		// Line 5

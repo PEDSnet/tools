@@ -6,11 +6,11 @@ import (
 	"testing"
 )
 
-var fileSample = `Model,Model Version,Data Version,DQA Version,Table,Field,Goal,Issue Code,Issue Description,Finding,Prevalence,Rank,Site Response,Cause,Status,Reviewer
-pedsnet,2.1.0,pedsnet-2.1.0-SITE-ETLv1,0,care_site,care_site_id,Fidelity,,,,,,,,,
-pedsnet,2.1.0,pedsnet-2.1.0-SITE-ETLv1,0,care_site,care_site_id,Consistency,,,,,,,,,
-pedsnet,2.1.0,pedsnet-2.1.0-SITE-ETLv1,0,care_site,care_site_id,Accuracy,,,,,,,,,
-pedsnet,2.1.0,pedsnet-2.1.0-SITE-ETLv1,0,care_site,care_site_id,Feasability,,,,,,,,,
+var fileSample = `Model,Model Version,Data Version,DQA Version,Table,Field,Goal,Issue Code,Issue Description,Finding,Prevalence,Rank,Site Response,Cause,Status,Reviewer,GithubID
+pedsnet,2.1.0,pedsnet-2.1.0-SITE-ETLv1,0,care_site,care_site_id,Fidelity,,,,,,,,,,
+pedsnet,2.1.0,pedsnet-2.1.0-SITE-ETLv1,0,care_site,care_site_id,Consistency,,,,,,,,,,
+pedsnet,2.1.0,pedsnet-2.1.0-SITE-ETLv1,0,care_site,care_site_id,Accuracy,,,,,,,,,,
+pedsnet,2.1.0,pedsnet-2.1.0-SITE-ETLv1,0,care_site,care_site_id,Feasability,,,,,,,,,,
 `
 
 func TestReader(t *testing.T) {
@@ -55,6 +55,6 @@ func TestWriter(t *testing.T) {
 
 	output := strings.TrimSpace(wbuf.String())
 	if output != strings.TrimSpace(fileSample) {
-		t.Errorf("Input does not match output: %s", output)
+		t.Errorf("Input does not match output:\n%s", output)
 	}
 }
