@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/PEDSnet/dqa-tool/uni"
 	"github.com/PEDSnet/tools/cmd/dqa/results"
 	"github.com/spf13/cobra"
 )
@@ -137,7 +138,9 @@ func readIssues(fn string) ([]*results.Result, error) {
 	}
 	defer f.Close()
 
-	cr := csv.NewReader(f)
+	r := uni.New(f)
+
+	cr := csv.NewReader(r)
 	fields, err := cr.Read()
 
 	head, err := checkFields(fields)
@@ -166,6 +169,7 @@ func readIssues(fn string) ([]*results.Result, error) {
 			IssueDescription: row[head.IssueDescription],
 			Finding:          row[head.Finding],
 			Prevalence:       row[head.Prevalence],
+			Status:           "new",
 		}
 
 		toks := strings.Split(res.DataVersion, "-")
@@ -218,7 +222,7 @@ func checkFields(fields []string) (*issueFields, error) {
 			head.Prevalence = i
 
 		default:
-			log.Println("unknown field %s", field)
+			log.Printf("unknown field %s\n", field)
 			continue
 		}
 
