@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-var fileSample = `Model,Model Version,Data Version,DQA Version,Table,Field,Goal,Issue Code,Issue Description,Finding,Prevalence,Rank,Site Response,Cause,Status,Reviewer,GithubID
+var fileSample = `Model,Model Version,Data Version,DQA Version,Table,Field,Goal,Issue Code,Issue Description,Finding,Prevalence,Rank,Site Response,Cause,Status,Reviewer,Github ID
 pedsnet,2.1.0,pedsnet-2.1.0-SITE-ETLv1,0,care_site,care_site_id,Fidelity,,,,,,,,,,
 pedsnet,2.1.0,pedsnet-2.1.0-SITE-ETLv1,0,care_site,care_site_id,Consistency,,,,,,,,,,
 pedsnet,2.1.0,pedsnet-2.1.0-SITE-ETLv1,0,care_site,care_site_id,Accuracy,,,,,,,,,,

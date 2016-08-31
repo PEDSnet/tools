@@ -43,7 +43,7 @@ var FileHeaderFields = []string{
 	"Cause",
 	"Status",
 	"Reviewer",
-	"GithubID",
+	"Github ID",
 }
 
 // FileHeader stores the column position for each field.
