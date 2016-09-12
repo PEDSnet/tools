@@ -197,19 +197,3 @@ $ pedsnet-dqa validate \
     Seattle/* \
     StLouis/* | more
 ```
-
-## Migrate Reports
-
-This command migrates the reports to the latest structure and only needs to be run once when a new version is introduced. It is safe to run the command on already migrated reports.
-
-```
-$ pedsnet-dqa migrate-reports \
-    Boston/* \
-    CCHMC/* \
-    CHOP/* \
-    Colorado/* \
-    Nationwide/* \
-    Nemours/* \
-    Seattle/* \
-    StLouis/* | more
-```
