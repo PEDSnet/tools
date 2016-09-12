@@ -20,7 +20,7 @@ var (
 		Minor: 2,
 		Patch: 0,
 		Pre: []semver.PRVersion{
-			{VersionStr: "beta"},
+			{VersionStr: "final"},
 			{VersionNum: 5},
 		},
 	}
