@@ -33,6 +33,7 @@ var ColumnNames = []string{
 	"status",
 	"reviewer",
 	"github_id",
+	"method",
 }
 
 type DB struct {

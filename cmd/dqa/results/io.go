@@ -57,7 +57,7 @@ func ReadFromDir(dir string) (map[string]*File, error) {
 	return reports, nil
 }
 
-// Reader reads a DQA exposing a header with mapped positions
+// Reader reads a DQA file exposing a header with mapped positions
 // to the field.
 type Reader struct {
 	head *FileHeader
@@ -85,26 +85,42 @@ func (r *Reader) Read() (*Result, error) {
 
 	// Using the head struct to select the corresponding value
 	// in the input row to the result.
-	return &Result{
+	res := &Result{
 		Model:            row[r.head.Model],
 		ModelVersion:     row[r.head.ModelVersion],
 		DataVersion:      row[r.head.DataVersion],
 		DQAVersion:       row[r.head.DQAVersion],
 		Table:            row[r.head.Table],
 		Field:            row[r.head.Field],
-		Goal:             row[r.head.Goal],
 		IssueCode:        row[r.head.IssueCode],
 		IssueDescription: row[r.head.IssueDescription],
 		Finding:          row[r.head.Finding],
 		Prevalence:       row[r.head.Prevalence],
 		Rank:             rank,
 		rank:             row[r.head.Rank],
-		SiteResponse:     row[r.head.SiteResponse],
 		Cause:            row[r.head.Cause],
 		Status:           row[r.head.Status],
-		Reviewer:         row[r.head.Reviewer],
-		GithubID:         row[r.head.GithubID],
-	}, nil
+
+		fileVersion: r.head.fileVersion,
+	}
+
+	// Added in later version.
+	if r.head.fileVersion >= fileVersion2 {
+		res.GithubID = row[r.head.GithubID]
+	}
+
+	if r.head.fileVersion >= fileVersion3 {
+		res.Method = row[r.head.Method]
+	}
+
+	// Removed in later version.
+	if r.head.fileVersion < fileVersion3 {
+		res.Goal = row[r.head.Goal]
+		res.SiteResponse = row[r.head.SiteResponse]
+		res.Reviewer = row[r.head.Reviewer]
+	}
+
+	return res, nil
 }
 
 // ReadAll reads all results from the reader.
@@ -132,7 +148,6 @@ func (cr *Reader) ReadAll() ([]*Result, error) {
 func NewReader(r io.Reader) (*Reader, error) {
 	cr := csv.NewReader(uni.New(r))
 
-	cr.FieldsPerRecord = len(FileHeaderFields)
 	cr.Comment = '#'
 	cr.LazyQuotes = true
 	cr.TrimLeadingSpace = true
@@ -163,7 +178,7 @@ type Writer struct {
 // Write writes a result to the underlying writer.
 func (w *Writer) Write(r *Result) error {
 	if !w.head {
-		if err := w.csv.Write(FileHeaderFields); err != nil {
+		if err := w.csv.Write(fileHeader(r.fileVersion)); err != nil {
 			return err
 		}
 

@@ -170,6 +170,7 @@ func readIssues(fn string) ([]*results.Result, error) {
 			Finding:          row[head.Finding],
 			Prevalence:       row[head.Prevalence],
 			Status:           "new",
+			Method:           "auto",
 		}
 
 		toks := strings.Split(res.DataVersion, "-")
