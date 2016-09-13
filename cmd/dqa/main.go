@@ -6,7 +6,6 @@ import (
 	"github.com/PEDSnet/tools/cmd/dqa/feedback"
 	"github.com/PEDSnet/tools/cmd/dqa/generate"
 	"github.com/PEDSnet/tools/cmd/dqa/issues"
-	"github.com/PEDSnet/tools/cmd/dqa/migrate"
 	"github.com/PEDSnet/tools/cmd/dqa/query"
 	"github.com/PEDSnet/tools/cmd/dqa/rank"
 	"github.com/PEDSnet/tools/cmd/dqa/validate"
@@ -62,7 +61,6 @@ func main() {
 	mainCmd.AddCommand(feedback.Cmd)
 	mainCmd.AddCommand(rank.Cmd)
 	mainCmd.AddCommand(query.Cmd)
-	mainCmd.AddCommand(migrate.Cmd)
 	mainCmd.AddCommand(issues.Cmd)
 
 	mainCmd.Execute()

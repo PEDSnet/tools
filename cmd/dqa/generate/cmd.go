@@ -118,45 +118,42 @@ flag which ensures all persistent issues are copied to the new template.
 			w := results.NewWriter(file)
 
 			for _, field := range table.Fields.List() {
-				for _, goal := range results.Goals {
-					res := &results.Result{
-						Model:        modelName,
-						ModelVersion: modelVersion,
-						DataVersion:  dataVersion,
-						DQAVersion:   dqaVersion,
-						Table:        table.Name,
-						Field:        field.Name,
-						Goal:         goal,
-					}
+				res := results.NewResult()
+				res.Model = modelName
+				res.ModelVersion = modelVersion
+				res.DataVersion = dataVersion
+				res.DQAVersion = dqaVersion
+				res.Table = table.Name
+				res.Field = field.Name
 
-					// No copying needed.
-					if copyPersistent == "" {
+				// No copying needed.
+				if copyPersistent == "" {
+					w.Write(res)
+					continue
+				}
+
+				// Find persistent issues for the field and copy them.
+				// Note there may be multiple for the same field.
+				if l, ok := index[field.Name]; ok {
+					for _, r := range l {
+						res.IssueCode = r.IssueCode
+						res.IssueDescription = r.IssueDescription
+						res.Finding = r.Finding
+						res.Prevalence = r.Prevalence
+						res.Rank = r.Rank
+						res.SiteResponse = r.SiteResponse
+						res.Cause = r.Cause
+						res.Status = r.Status
+						res.Reviewer = r.Reviewer
+						res.GithubID = r.GithubID
+						res.Method = r.Method
+
 						w.Write(res)
 						continue
 					}
 
-					// Find persistent issues for the field/goal and copy them.
-					// Note there may be multiple for the same field and goal.
-					if l, ok := index[[2]string{field.Name, goal}]; ok {
-						for _, r := range l {
-							res.IssueCode = r.IssueCode
-							res.IssueDescription = r.IssueDescription
-							res.Finding = r.Finding
-							res.Prevalence = r.Prevalence
-							res.Rank = r.Rank
-							res.SiteResponse = r.SiteResponse
-							res.Cause = r.Cause
-							res.Status = r.Status
-							res.Reviewer = r.Reviewer
-							res.GithubID = r.GithubID
-
-							w.Write(res)
-						}
-
-						continue
-					}
-
-					// No persistent issues found, write the default field/goal.
+				} else {
+					// No persistent issues found, write an empty field issue.
 					w.Write(res)
 				}
 			}
@@ -173,19 +170,19 @@ flag which ensures all persistent issues are copied to the new template.
 	},
 }
 
-// Index of field/goal pairs to a set of results.
-type prevIssues map[[2]string][]*results.Result
+// Index of field to a set of results.
+type prevIssues map[string][]*results.Result
 
-// Index persistent issues by field and goal. Multiple issues can be present
+// Index persistent issues by field. Multiple issues can be present
 // so a slice is used here.
 func indexPreviousIssues(f *results.File) prevIssues {
 	index := make(prevIssues)
 
 	for _, r := range f.Results {
 		if r.IsPersistent() || r.IsUnresolved() {
-			results := index[[2]string{r.Field, r.Goal}]
+			results := index[r.Field]
 			results = append(results, r)
-			index[[2]string{r.Field, r.Goal}] = results
+			index[r.Field] = results
 		}
 	}
 

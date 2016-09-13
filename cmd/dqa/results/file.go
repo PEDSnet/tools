@@ -9,6 +9,21 @@ import (
 	"github.com/blang/semver"
 )
 
+const (
+	// The initial format that does not include the Github ID column. However
+	// since all files were migrated to include the new column, this won't
+	// be referenced.
+	fileVersion1 uint8 = iota + 1
+
+	// Adds the Github ID column.
+	fileVersion2
+
+	// Add the Method column and removes Reviewer, Site Response, and Goal.
+	fileVersion3
+
+	currentFileVersion = fileVersion3
+)
+
 var githubIssueURL = "https://github.com/PEDSnet/%s/issues/%s"
 
 // inStringSlice returns true if the string is in the slice.
@@ -25,25 +40,70 @@ func inStringSlice(s string, l []string) bool {
 	return false
 }
 
-// FileHeaderFields are the header fields of a results file.
-var FileHeaderFields = []string{
-	"Model",
-	"Model Version",
-	"Data Version",
-	"DQA Version",
-	"Table",
-	"Field",
-	"Goal",
-	"Issue Code",
-	"Issue Description",
-	"Finding",
-	"Prevalence",
-	"Rank",
-	"Site Response",
-	"Cause",
-	"Status",
-	"Reviewer",
-	"Github ID",
+func fileHeader(v uint8) []string {
+	switch v {
+	case fileVersion1:
+		return []string{
+			"Model",
+			"Model Version",
+			"Data Version",
+			"DQA Version",
+			"Table",
+			"Field",
+			"Goal",
+			"Issue Code",
+			"Issue Description",
+			"Finding",
+			"Prevalence",
+			"Rank",
+			"Site Response",
+			"Cause",
+			"Status",
+			"Reviewer",
+		}
+
+	case fileVersion2:
+		return []string{
+			"Model",
+			"Model Version",
+			"Data Version",
+			"DQA Version",
+			"Table",
+			"Field",
+			"Goal",
+			"Issue Code",
+			"Issue Description",
+			"Finding",
+			"Prevalence",
+			"Rank",
+			"Site Response",
+			"Cause",
+			"Status",
+			"Reviewer",
+			"Github ID",
+		}
+
+	case fileVersion3:
+		return []string{
+			"Model",
+			"Model Version",
+			"Data Version",
+			"DQA Version",
+			"Table",
+			"Field",
+			"Issue Code",
+			"Issue Description",
+			"Finding",
+			"Prevalence",
+			"Rank",
+			"Cause",
+			"Status",
+			"Github ID",
+			"Method",
+		}
+	}
+
+	panic("unknown file version")
 }
 
 // FileHeader stores the column position for each field.
@@ -65,33 +125,38 @@ type FileHeader struct {
 	Status           int
 	Reviewer         int
 	GithubID         int
+	Method           int
+
+	fileVersion uint8
 }
 
-func (*FileHeader) Fields() []string {
-	return FileHeaderFields
+func (h *FileHeader) Fields() []string {
+	return fileHeader(h.fileVersion)
 }
 
-// NewFileHeader initializes a new file header.
+// NewFileHeader initializes a new file header. The latest version
+// is already used.
 func NewFileHeader() *FileHeader {
-	head, err := ParseFileHeader(FileHeaderFields)
+	head, err := ParseFileHeader(fileHeader(currentFileVersion))
 	if err != nil {
 		panic(fmt.Sprintf("Unexpected internal error: %s", err))
 	}
 	return head
 }
 
+func normalizeColName(s string) string {
+	return strings.Replace(strings.ToLower(strings.TrimSpace(s)), " ", "_", -1)
+}
+
 // ParseFileHeader parses a file header and indexes the position of each field
-// for accessing values.
+// for accessing values. The filer version is determined by the fields present.
 func ParseFileHeader(row []string) (*FileHeader, error) {
-	if len(row) != len(FileHeaderFields) {
-		return nil, fmt.Errorf("Results header contains %d fields, but expected %d", len(row), len(FileHeaderFields))
+	h := FileHeader{
+		fileVersion: fileVersion1,
 	}
 
-	h := FileHeader{}
-
 	for i, col := range row {
-		// Normalize column name for comparison.
-		col = strings.Replace(strings.ToLower(strings.TrimSpace(col)), " ", "_", -1)
+		col = normalizeColName(col)
 
 		switch col {
 		case "model":
@@ -128,6 +193,10 @@ func ParseFileHeader(row []string) (*FileHeader, error) {
 			h.Reviewer = i
 		case "github_id", "githubid":
 			h.GithubID = i
+			h.fileVersion = fileVersion2
+		case "method":
+			h.Method = i
+			h.fileVersion = fileVersion3
 		default:
 			return nil, fmt.Errorf("invalid column: %s", row[i])
 		}
@@ -136,7 +205,7 @@ func ParseFileHeader(row []string) (*FileHeader, error) {
 	return &h, nil
 }
 
-// Result targets a specific goal an is tied to a Field.
+// Result targets a Field.
 type Result struct {
 	Model            string
 	ModelVersion     string
@@ -155,34 +224,80 @@ type Result struct {
 	Status           string
 	Reviewer         string
 	GithubID         string
+	Method           string
 
-	rank string
+	rank        string
+	fileVersion uint8
 }
 
 func (r *Result) Row() []string {
-	return []string{
-		r.Model,
-		r.ModelVersion,
-		r.DataVersion,
-		r.DQAVersion,
-		r.Table,
-		r.Field,
-		r.Goal,
-		r.IssueCode,
-		r.IssueDescription,
-		r.Finding,
-		r.Prevalence,
-		r.Rank.String(),
-		r.SiteResponse,
-		r.Cause,
-		r.Status,
-		r.Reviewer,
-		r.GithubID,
+	switch r.fileVersion {
+	case fileVersion1:
+		return []string{
+			r.Model,
+			r.ModelVersion,
+			r.DataVersion,
+			r.DQAVersion,
+			r.Table,
+			r.Field,
+			r.Goal,
+			r.IssueCode,
+			r.IssueDescription,
+			r.Finding,
+			r.Prevalence,
+			r.Rank.String(),
+			r.SiteResponse,
+			r.Cause,
+			r.Status,
+			r.Reviewer,
+		}
+
+	case fileVersion2:
+		return []string{
+			r.Model,
+			r.ModelVersion,
+			r.DataVersion,
+			r.DQAVersion,
+			r.Table,
+			r.Field,
+			r.Goal,
+			r.IssueCode,
+			r.IssueDescription,
+			r.Finding,
+			r.Prevalence,
+			r.Rank.String(),
+			r.SiteResponse,
+			r.Cause,
+			r.Status,
+			r.Reviewer,
+			r.GithubID,
+		}
+
+	case fileVersion3:
+		return []string{
+			r.Model,
+			r.ModelVersion,
+			r.DataVersion,
+			r.DQAVersion,
+			r.Table,
+			r.Field,
+			r.IssueCode,
+			r.IssueDescription,
+			r.Finding,
+			r.Prevalence,
+			r.Rank.String(),
+			r.Cause,
+			r.Status,
+			r.GithubID,
+			r.Method,
+		}
 	}
+
+	panic("unknown file version")
 }
 
 func (r *Result) String() string {
-	return fmt.Sprintf("%s.%s (%s)", r.Table, r.Field, r.Goal)
+	return fmt.Sprintf("%s.%s", r.Table, r.Field)
 }
 
 func (r *Result) IsIssue() bool {
@@ -226,7 +341,12 @@ func (r *Result) GithubURL() string {
 
 	// Template of the Github issues URL.
 	return fmt.Sprintf(githubIssueURL, site, r.GithubID)
+}
 
+func NewResult() *Result {
+	return &Result{
+		fileVersion: currentFileVersion,
+	}
 }
 
 // Results is a sortable set of results by field. Each set should be specific
@@ -249,6 +369,8 @@ func (r Results) Len() int {
 type File struct {
 	Name    string
 	Results Results
+
+	fileVersion uint8
 }
 
 // String returns the name of associated with this file.
@@ -265,6 +387,7 @@ func (f *File) Read(r io.Reader) (int, error) {
 		return 0, err
 	}
 
+	f.fileVersion = rr.head.fileVersion
 	f.Results = append(f.Results, results...)
 	sort.Sort(f.Results)
 
@@ -282,7 +405,7 @@ func (f *File) Validate() map[int][]string {
 		}
 
 		// Goal.
-		if !inStringSlice(res.Goal, Goals) {
+		if f.fileVersion < fileVersion3 && !inStringSlice(res.Goal, Goals) {
 			errs[i] = append(errs[i], fmt.Sprintf("goal = '%s'", res.Goal))
 		}
 
@@ -313,6 +436,7 @@ func (f *File) Validate() map[int][]string {
 // NewFile initializes a new file of results.
 func NewFile(name string) *File {
 	return &File{
-		Name: name,
+		Name:        name,
+		fileVersion: currentFileVersion,
 	}
 }
