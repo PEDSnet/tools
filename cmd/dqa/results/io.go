@@ -67,7 +67,6 @@ type Reader struct {
 // Read reads and parses a result from the underlying reader.
 func (r *Reader) Read() (*Result, error) {
 	row, err := r.csv.Read()
-
 	if err != nil {
 		return nil, err
 	}
@@ -105,16 +104,16 @@ func (r *Reader) Read() (*Result, error) {
 	}
 
 	// Added in later version.
-	if r.head.fileVersion >= fileVersion2 {
+	if r.head.fileVersion >= FileVersion2 {
 		res.GithubID = row[r.head.GithubID]
 	}
 
-	if r.head.fileVersion >= fileVersion3 {
+	if r.head.fileVersion >= FileVersion3 {
 		res.Method = row[r.head.Method]
 	}
 
 	// Removed in later version.
-	if r.head.fileVersion < fileVersion3 {
+	if r.head.fileVersion < FileVersion3 {
 		res.Goal = row[r.head.Goal]
 		res.SiteResponse = row[r.head.SiteResponse]
 		res.Reviewer = row[r.head.Reviewer]

@@ -52,7 +52,6 @@ Multiple log files can be applied:
 		for _, fn := range args[1:] {
 			issues, err := readIssues(fn)
 			if err != nil {
-				log.Println(err)
 				continue
 			}
 
@@ -172,6 +171,8 @@ func readIssues(fn string) ([]*results.Result, error) {
 			Status:           "new",
 			Method:           "auto",
 		}
+
+		res.SetFileVersion(3)
 
 		toks := strings.Split(res.DataVersion, "-")
 		res.Model = toks[0]

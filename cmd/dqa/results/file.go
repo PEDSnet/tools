@@ -13,15 +13,15 @@ const (
 	// The initial format that does not include the Github ID column. However
 	// since all files were migrated to include the new column, this won't
 	// be referenced.
-	fileVersion1 uint8 = iota + 1
+	FileVersion1 uint8 = iota + 1
 
 	// Adds the Github ID column.
-	fileVersion2
+	FileVersion2
 
 	// Add the Method column and removes Reviewer, Site Response, and Goal.
-	fileVersion3
+	FileVersion3
 
-	currentFileVersion = fileVersion3
+	currentFileVersion = FileVersion3
 )
 
 var githubIssueURL = "https://github.com/PEDSnet/%s/issues/%s"
@@ -42,7 +42,7 @@ func inStringSlice(s string, l []string) bool {
 
 func fileHeader(v uint8) []string {
 	switch v {
-	case fileVersion1:
+	case FileVersion1:
 		return []string{
 			"Model",
 			"Model Version",
@@ -62,7 +62,7 @@ func fileHeader(v uint8) []string {
 			"Reviewer",
 		}
 
-	case fileVersion2:
+	case FileVersion2:
 		return []string{
 			"Model",
 			"Model Version",
@@ -83,7 +83,7 @@ func fileHeader(v uint8) []string {
 			"Github ID",
 		}
 
-	case fileVersion3:
+	case FileVersion3:
 		return []string{
 			"Model",
 			"Model Version",
@@ -152,7 +152,7 @@ func normalizeColName(s string) string {
 // for accessing values. The filer version is determined by the fields present.
 func ParseFileHeader(row []string) (*FileHeader, error) {
 	h := FileHeader{
-		fileVersion: fileVersion1,
+		fileVersion: FileVersion1,
 	}
 
 	for i, col := range row {
@@ -193,10 +193,10 @@ func ParseFileHeader(row []string) (*FileHeader, error) {
 			h.Reviewer = i
 		case "github_id", "githubid":
 			h.GithubID = i
-			h.fileVersion = fileVersion2
+			h.fileVersion = FileVersion2
 		case "method":
 			h.Method = i
-			h.fileVersion = fileVersion3
+			h.fileVersion = FileVersion3
 		default:
 			return nil, fmt.Errorf("invalid column: %s", row[i])
 		}
@@ -230,9 +230,13 @@ type Result struct {
 	fileVersion uint8
 }
 
+func (r *Result) SetFileVersion(v uint8) {
+	r.fileVersion = v
+}
+
 func (r *Result) Row() []string {
 	switch r.fileVersion {
-	case fileVersion1:
+	case FileVersion1:
 		return []string{
 			r.Model,
 			r.ModelVersion,
@@ -252,7 +256,7 @@ func (r *Result) Row() []string {
 			r.Reviewer,
 		}
 
-	case fileVersion2:
+	case FileVersion2:
 		return []string{
 			r.Model,
 			r.ModelVersion,
@@ -273,7 +277,7 @@ func (r *Result) Row() []string {
 			r.GithubID,
 		}
 
-	case fileVersion3:
+	case FileVersion3:
 		return []string{
 			r.Model,
 			r.ModelVersion,
@@ -381,6 +385,9 @@ func (f *File) String() string {
 // Read reads results from an reader and adds them to the report.
 func (f *File) Read(r io.Reader) (int, error) {
 	rr, err := NewReader(r)
+	if err != nil {
+		return 0, err
+	}
 
 	results, err := rr.ReadAll()
 	if err != nil {
@@ -405,7 +412,7 @@ func (f *File) Validate() map[int][]string {
 		}
 
 		// Goal.
-		if f.fileVersion < fileVersion3 && !inStringSlice(res.Goal, Goals) {
+		if f.fileVersion < FileVersion3 && !inStringSlice(res.Goal, Goals) {
 			errs[i] = append(errs[i], fmt.Sprintf("goal = '%s'", res.Goal))
 		}
 
