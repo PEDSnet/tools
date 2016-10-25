@@ -207,24 +207,24 @@ func ParseFileHeader(row []string) (*FileHeader, error) {
 
 // Result targets a Field.
 type Result struct {
-	Model            string
-	ModelVersion     string
-	DataVersion      string
-	DQAVersion       string
-	Table            string
-	Field            string
-	Goal             string
-	IssueCode        string
-	IssueDescription string
-	Finding          string
-	Prevalence       string
-	Rank             Rank
-	SiteResponse     string
-	Cause            string
-	Status           string
-	Reviewer         string
-	GithubID         string
-	Method           string
+	Model            string `json:"model"`
+	ModelVersion     string `json:"model_version"`
+	DataVersion      string `json:"data_version"`
+	DQAVersion       string `json:"dqa_version"`
+	Table            string `json:"table"`
+	Field            string `json:"field"`
+	Goal             string `json:"goal"`
+	IssueCode        string `json:"issue_code"`
+	IssueDescription string `json:"issue_description"`
+	Finding          string `json:"finding"`
+	Prevalence       string `json:"prevalence"`
+	Rank             Rank   `json:"rank"`
+	SiteResponse     string `json:"site_response"`
+	Cause            string `json:"cause"`
+	Status           string `json:"status"`
+	Reviewer         string `json:"reviewer"`
+	GithubID         string `json:"github_id"`
+	Method           string `json:"method"`
 
 	rank        string
 	fileVersion uint8

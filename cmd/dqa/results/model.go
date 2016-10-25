@@ -1,5 +1,7 @@
 package results
 
+import "encoding/json"
+
 // Rank is an ordered enumeration of result issue rankings.
 type Rank int
 
@@ -14,6 +16,28 @@ func (r Rank) String() string {
 	}
 
 	return ""
+}
+
+func (r *Rank) MarshalJSON() ([]byte, error) {
+	return json.Marshal(r.String())
+}
+
+func (r *Rank) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+
+	switch s {
+	case "High":
+		*r = HighRank
+	case "Medium":
+		*r = MediumRank
+	case "Low":
+		*r = LowRank
+	}
+
+	return nil
 }
 
 const (
