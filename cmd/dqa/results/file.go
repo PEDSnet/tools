@@ -234,6 +234,14 @@ func (r *Result) SetFileVersion(v uint8) {
 	r.fileVersion = v
 }
 
+func (r *Result) Fields() []string {
+	a := strings.Split(",", r.Field)
+	for i, s := range a {
+		a[i] = strings.TrimSpace(s)
+	}
+	return a
+}
+
 func (r *Result) Row() []string {
 	switch r.fileVersion {
 	case FileVersion1:

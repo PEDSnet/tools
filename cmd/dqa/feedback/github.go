@@ -193,7 +193,13 @@ func (gr *GithubReport) BuildIssue(r *results.Result) (*github.IssueRequest, err
 		return nil, fmt.Errorf("Result site or ETL version does not match reports")
 	}
 
-	title := fmt.Sprintf("DQA: %s (%s): %s/%s", gr.DataCycle, gr.ETLVersion, r.Table, r.Field)
+	var title string
+	if r.Field == "" {
+		title = fmt.Sprintf("DQA: %s (%s): %s", gr.DataCycle, gr.ETLVersion, r.Table)
+	} else {
+		title = fmt.Sprintf("DQA: %s (%s): %s/{%s}", gr.DataCycle, gr.ETLVersion, r.Table, r.Field)
+	}
+
 	body := fmt.Sprintf("**Description**: %s\n**Finding**: %s", r.CheckType, r.Finding)
 
 	labels := []string{

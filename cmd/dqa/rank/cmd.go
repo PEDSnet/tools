@@ -160,7 +160,7 @@ func outputSummary(w io.Writer, matches rankMatches) {
 			"table",
 			"field",
 			"goal",
-			"issue code",
+			"check code",
 			"prevalence",
 			"new rank",
 			"old rank",

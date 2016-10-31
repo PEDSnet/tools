@@ -14,7 +14,7 @@ var (
 {{range .Tables}}## {{.Name}}
 {{range .Ranks}}### {{.Name}}
 
-{{range .Fields}}{{range .Results}}{{if .CheckCode}}- [ ] {{$R.Incr}}. **{{.Field}}**: {{if .GithubID}}[#{{.GithubID}}]({{.GithubURL}}) {{end}}{{.CheckType}}{{if .Finding}}
+{{range .Fields}}{{range .Results}}{{if .CheckCode}}- [ ] {{$R.Incr}}. {{if .Field}}**{{.Field}}**: {{end}}{{if .GithubID}}[#{{.GithubID}}]({{.GithubURL}}) {{end}}{{.CheckType}}{{if .Finding}}
     - Finding: {{.Finding}}{{end}}
 {{end}}{{end}}{{end}}
 {{end}}
@@ -56,7 +56,6 @@ var (
 
 func init() {
 	tmpl = template.New("results")
-
 	template.Must(tmpl.New("pedsnet").Parse(pedsnetTemplate))
 }
 
@@ -223,7 +222,7 @@ type sectionSplitter func(r *Result) (string, bool)
 
 func byRank(r *Result) (string, bool) {
 	if r.Rank == 0 {
-		return "", false
+		return "Unknown", true
 	}
 
 	return r.Rank.String(), true
