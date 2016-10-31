@@ -202,6 +202,14 @@ func (w *Writer) WriteAll(results []*Result) error {
 
 // Flush flushes the written results to the underlying writer.
 func (w *Writer) Flush() error {
+	if !w.head {
+		if err := w.csv.Write(fileHeader(FileVersion3)); err != nil {
+			return err
+		}
+
+		w.head = true
+	}
+
 	w.csv.Flush()
 	return w.csv.Error()
 }
