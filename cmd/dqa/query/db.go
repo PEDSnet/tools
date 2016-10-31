@@ -15,7 +15,7 @@ import (
 
 const TableName = "results"
 
-var ColumnNames = []string{
+var columnNames = []string{
 	"model",
 	"model_version",
 	"data_version",
@@ -46,9 +46,9 @@ func Open() (*DB, error) {
 		return nil, err
 	}
 
-	cols := make([]string, len(ColumnNames))
+	cols := make([]string, len(columnNames))
 
-	for i, col := range ColumnNames {
+	for i, col := range columnNames {
 		cols[i] = fmt.Sprintf("\"%s\" TEXT", col)
 	}
 
@@ -61,18 +61,22 @@ func Open() (*DB, error) {
 	return &DB{db}, nil
 }
 
-func (db *DB) Load(results []*results.Result) error {
+func (db *DB) Load(header []string, results []*results.Result) error {
 	if len(results) == 0 {
 		return nil
 	}
 
-	params := make([]string, len(ColumnNames))
+	for i, c := range header {
+		header[i] = fmt.Sprintf("`%s`", strings.Replace(strings.ToLower(c), " ", "_", -1))
+	}
+
+	params := make([]string, len(header))
 
 	for i, _ := range params {
 		params[i] = "?"
 	}
 
-	stmt := fmt.Sprintf("INSERT INTO %s VALUES (%s)", TableName, strings.Join(params, ","))
+	stmt := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", TableName, strings.Join(header, ","), strings.Join(params, ","))
 
 	for _, r := range results {
 		row := make([]interface{}, len(params))

@@ -71,7 +71,7 @@ Read from a file:
 			}
 
 			for _, r := range reports {
-				if err = db.Load(r.Results); err != nil {
+				if err = db.Load(r.Header(), r.Results); err != nil {
 					cmd.Printf("Error loading results into the database: %s\n", err)
 					os.Exit(1)
 				}
@@ -89,9 +89,9 @@ Read from a file:
 }
 
 func printHeader(w io.Writer) {
-	cols := make([]string, len(ColumnNames))
+	cols := make([]string, len(columnNames))
 
-	for i, c := range ColumnNames {
+	for i, c := range columnNames {
 		cols[i] = fmt.Sprintf(`"%s"`, c)
 	}
 

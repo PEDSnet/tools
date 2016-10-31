@@ -242,6 +242,10 @@ func (r *Result) Fields() []string {
 	return a
 }
 
+func (r *Result) Header() []string {
+	return fileHeader(r.fileVersion)
+}
+
 func (r *Result) Row() []string {
 	switch r.fileVersion {
 	case FileVersion1:
@@ -383,6 +387,10 @@ type File struct {
 	Results Results
 
 	fileVersion uint8
+}
+
+func (f *File) Header() []string {
+	return fileHeader(f.fileVersion)
 }
 
 // String returns the name of associated with this file.
