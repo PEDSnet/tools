@@ -88,19 +88,14 @@ flag which ensures all persistent issues are copied to the new template.
 			cmd.Printf("Error fetching model revision '%s/%s': %s", modelName, modelVersion, err)
 		}
 
+		// Copied issue count.
+		count := 0
+
 		// Create a file per table.
 		for _, table := range model.Tables.List() {
 			// Ignore certain tables from the template file.
 			if _, ok := results.ExcludedTables[table.Name]; ok {
 				continue
-			}
-
-			// Build an index of persistent and outstanding issues.
-			var index prevIssues
-
-			// Check if there is an existing file being copied.
-			if file, ok := files[fmt.Sprintf("%s.csv", table.Name)]; ok {
-				index = indexPreviousIssues(file)
 			}
 
 			// Initialize the file.
@@ -117,6 +112,21 @@ flag which ensures all persistent issues are copied to the new template.
 
 			w := results.NewWriter(file)
 
+			// Generate empty files with just the header.
+			if copyPersistent == "" {
+				w.Flush()
+				file.Close()
+				continue
+			}
+
+			// Build an index of persistent and outstanding issues.
+			var index prevIssues
+
+			// Check if there is an existing file being copied.
+			if file, ok := files[fmt.Sprintf("%s.csv", table.Name)]; ok {
+				index = indexPreviousIssues(file)
+			}
+
 			for _, field := range table.Fields.List() {
 				res := results.NewResult()
 				res.Model = modelName
@@ -125,12 +135,6 @@ flag which ensures all persistent issues are copied to the new template.
 				res.DQAVersion = dqaVersion
 				res.Table = table.Name
 				res.Field = field.Name
-
-				// No copying needed.
-				if copyPersistent == "" {
-					w.Write(res)
-					continue
-				}
 
 				// Find persistent issues for the field and copy them.
 				// Note there may be multiple for the same field.
@@ -149,12 +153,9 @@ flag which ensures all persistent issues are copied to the new template.
 						res.Method = r.Method
 
 						w.Write(res)
+						count++
 						continue
 					}
-
-				} else {
-					// No persistent issues found, write an empty field issue.
-					w.Write(res)
 				}
 			}
 
@@ -165,7 +166,7 @@ flag which ensures all persistent issues are copied to the new template.
 		cmd.Printf("Wrote files to '%s' for model '%s/%s'\n", outDir, modelName, modelVersion)
 
 		if copyPersistent != "" {
-			cmd.Printf("Copied persistent issues from '%s'\n", copyPersistent)
+			cmd.Printf("Copied %d issues from '%s'\n", count, copyPersistent)
 		}
 	},
 }
