@@ -183,7 +183,13 @@ func (p *Parser) parseField(v string, tables []string) (*Condition, error) {
 
 	return &Condition{
 		Test: func(r *results.Result) bool {
-			return inSlice(r.Field, fields)
+			for _, f := range r.Fields() {
+				if inSlice(f, fields) {
+					return true
+				}
+			}
+
+			return false
 		},
 	}, nil
 }
