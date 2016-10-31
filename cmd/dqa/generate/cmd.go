@@ -140,8 +140,8 @@ flag which ensures all persistent issues are copied to the new template.
 				// Note there may be multiple for the same field.
 				if l, ok := index[field.Name]; ok {
 					for _, r := range l {
-						res.IssueCode = r.IssueCode
-						res.IssueDescription = r.IssueDescription
+						res.CheckCode = r.CheckCode
+						res.CheckType = r.CheckType
 						res.Finding = r.Finding
 						res.Prevalence = r.Prevalence
 						res.Rank = r.Rank

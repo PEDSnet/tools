@@ -74,9 +74,9 @@ Multiple log files can be applied:
 						os.Exit(1)
 					}
 
-					if r.Field == issue.Field && r.IssueCode == issue.IssueCode {
+					if r.Field == issue.Field && r.CheckCode == issue.CheckCode {
 						if r.IsUnresolved() || r.IsPersistent() {
-							cmd.Printf("Conflict: %s/%s for issue code %s\n", issue.Table, issue.Field, issue.IssueCode)
+							cmd.Printf("Conflict: %s/%s for issue code %s\n", issue.Table, issue.Field, issue.CheckCode)
 						}
 
 						found = true
@@ -160,16 +160,16 @@ func readIssues(fn string) ([]*results.Result, error) {
 		}
 
 		res := &results.Result{
-			DataVersion:      row[head.DataVersion],
-			DQAVersion:       "0",
-			Table:            row[head.Table],
-			Field:            row[head.Field],
-			IssueCode:        row[head.IssueCode],
-			IssueDescription: row[head.IssueDescription],
-			Finding:          row[head.Finding],
-			Prevalence:       row[head.Prevalence],
-			Status:           "new",
-			Method:           "auto",
+			DataVersion: row[head.DataVersion],
+			DQAVersion:  "0",
+			Table:       row[head.Table],
+			Field:       row[head.Field],
+			CheckCode:   row[head.CheckCode],
+			CheckType:   row[head.CheckType],
+			Finding:     row[head.Finding],
+			Prevalence:  row[head.Prevalence],
+			Status:      "new",
+			Method:      "auto",
 		}
 
 		res.SetFileVersion(3)
@@ -185,13 +185,13 @@ func readIssues(fn string) ([]*results.Result, error) {
 }
 
 type issueFields struct {
-	DataVersion      int
-	Table            int
-	Field            int
-	IssueCode        int
-	IssueDescription int
-	Finding          int
-	Prevalence       int
+	DataVersion int
+	Table       int
+	Field       int
+	CheckCode   int
+	CheckType   int
+	Finding     int
+	Prevalence  int
 }
 
 const numFields = 7
@@ -211,11 +211,11 @@ func checkFields(fields []string) (*issueFields, error) {
 		case "field":
 			head.Field = i
 
-		case "issue_code":
-			head.IssueCode = i
+		case "check_code", "issue_code":
+			head.CheckCode = i
 
-		case "issue_description":
-			head.IssueDescription = i
+		case "check_type", "issue_description":
+			head.CheckType = i
 
 		case "finding":
 			head.Finding = i

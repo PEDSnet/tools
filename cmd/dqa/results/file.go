@@ -91,8 +91,8 @@ func fileHeader(v uint8) []string {
 			"DQA Version",
 			"Table",
 			"Field",
-			"Issue Code",
-			"Issue Description",
+			"Check Code",
+			"Check Type",
 			"Finding",
 			"Prevalence",
 			"Rank",
@@ -108,24 +108,24 @@ func fileHeader(v uint8) []string {
 
 // FileHeader stores the column position for each field.
 type FileHeader struct {
-	Model            int
-	ModelVersion     int
-	DataVersion      int
-	DQAVersion       int
-	Table            int
-	Field            int
-	Goal             int
-	IssueCode        int
-	IssueDescription int
-	Finding          int
-	Prevalence       int
-	Rank             int
-	SiteResponse     int
-	Cause            int
-	Status           int
-	Reviewer         int
-	GithubID         int
-	Method           int
+	Model        int
+	ModelVersion int
+	DataVersion  int
+	DQAVersion   int
+	Table        int
+	Field        int
+	Goal         int
+	CheckCode    int
+	CheckType    int
+	Finding      int
+	Prevalence   int
+	Rank         int
+	SiteResponse int
+	Cause        int
+	Status       int
+	Reviewer     int
+	GithubID     int
+	Method       int
 
 	fileVersion uint8
 }
@@ -173,10 +173,10 @@ func ParseFileHeader(row []string) (*FileHeader, error) {
 			h.Field = i
 		case "goal":
 			h.Goal = i
-		case "issue_code":
-			h.IssueCode = i
-		case "issue_description":
-			h.IssueDescription = i
+		case "check_code", "issue_code":
+			h.CheckCode = i
+		case "check_type", "issue_description":
+			h.CheckType = i
 		case "finding":
 			h.Finding = i
 		case "prevalence":
@@ -207,24 +207,24 @@ func ParseFileHeader(row []string) (*FileHeader, error) {
 
 // Result targets a Field.
 type Result struct {
-	Model            string `json:"model"`
-	ModelVersion     string `json:"model_version"`
-	DataVersion      string `json:"data_version"`
-	DQAVersion       string `json:"dqa_version"`
-	Table            string `json:"table"`
-	Field            string `json:"field"`
-	Goal             string `json:"goal"`
-	IssueCode        string `json:"issue_code"`
-	IssueDescription string `json:"issue_description"`
-	Finding          string `json:"finding"`
-	Prevalence       string `json:"prevalence"`
-	Rank             Rank   `json:"rank"`
-	SiteResponse     string `json:"site_response"`
-	Cause            string `json:"cause"`
-	Status           string `json:"status"`
-	Reviewer         string `json:"reviewer"`
-	GithubID         string `json:"github_id"`
-	Method           string `json:"method"`
+	Model        string `json:"model"`
+	ModelVersion string `json:"model_version"`
+	DataVersion  string `json:"data_version"`
+	DQAVersion   string `json:"dqa_version"`
+	Table        string `json:"table"`
+	Field        string `json:"field"`
+	Goal         string `json:"goal"`
+	CheckCode    string `json:"check_code"`
+	CheckType    string `json:"check_type"`
+	Finding      string `json:"finding"`
+	Prevalence   string `json:"prevalence"`
+	Rank         Rank   `json:"rank"`
+	SiteResponse string `json:"site_response"`
+	Cause        string `json:"cause"`
+	Status       string `json:"status"`
+	Reviewer     string `json:"reviewer"`
+	GithubID     string `json:"github_id"`
+	Method       string `json:"method"`
 
 	rank        string
 	fileVersion uint8
@@ -245,8 +245,8 @@ func (r *Result) Row() []string {
 			r.Table,
 			r.Field,
 			r.Goal,
-			r.IssueCode,
-			r.IssueDescription,
+			r.CheckCode,
+			r.CheckType,
 			r.Finding,
 			r.Prevalence,
 			r.Rank.String(),
@@ -265,8 +265,8 @@ func (r *Result) Row() []string {
 			r.Table,
 			r.Field,
 			r.Goal,
-			r.IssueCode,
-			r.IssueDescription,
+			r.CheckCode,
+			r.CheckType,
 			r.Finding,
 			r.Prevalence,
 			r.Rank.String(),
@@ -285,8 +285,8 @@ func (r *Result) Row() []string {
 			r.DQAVersion,
 			r.Table,
 			r.Field,
-			r.IssueCode,
-			r.IssueDescription,
+			r.CheckCode,
+			r.CheckType,
 			r.Finding,
 			r.Prevalence,
 			r.Rank.String(),
@@ -305,7 +305,7 @@ func (r *Result) String() string {
 }
 
 func (r *Result) IsIssue() bool {
-	return !r.IsPersistent() && r.IssueCode != ""
+	return !r.IsPersistent() && r.CheckCode != ""
 }
 
 func (r *Result) IsPersistent() bool {

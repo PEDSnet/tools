@@ -188,7 +188,7 @@ func (p *Parser) parseField(v string, tables []string) (*Condition, error) {
 	}, nil
 }
 
-func (*Parser) parseIssueCode(v string) (string, error) {
+func (*Parser) parseCheckCode(v string) (string, error) {
 	return strings.ToLower(v), nil
 }
 
@@ -240,7 +240,7 @@ func (p *Parser) parse() (Rules, error) {
 	var (
 		tables      []string
 		condition   *Condition
-		issueCode   string
+		checkCode   string
 		prevalences []string
 		rank        results.Rank
 	)
@@ -257,7 +257,7 @@ func (p *Parser) parse() (Rules, error) {
 		return nil, NewParseError(p.kind, p.line, err)
 	}
 
-	if issueCode, err = p.parseIssueCode(row[2]); err != nil {
+	if checkCode, err = p.parseCheckCode(row[2]); err != nil {
 		return nil, NewParseError(p.kind, p.line, err)
 	}
 
@@ -278,7 +278,7 @@ func (p *Parser) parse() (Rules, error) {
 				Table:      t,
 				Condition:  condition,
 				Prevalence: pr,
-				IssueCode:  issueCode,
+				CheckCode:  checkCode,
 				Rank:       rank,
 			})
 		}

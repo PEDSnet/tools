@@ -153,9 +153,9 @@ func migrateCodes(path string) error {
 
 	for i, col := range head {
 		switch strings.ToLower(col) {
-		case "issue code", "issue_code":
+		case "check_code", "issue_code":
 			codepos = i
-		case "issue description", "issue_description":
+		case "check_type", "issue_description":
 			descpos = i
 		}
 	}

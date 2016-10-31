@@ -194,7 +194,7 @@ func (gr *GithubReport) BuildIssue(r *results.Result) (*github.IssueRequest, err
 	}
 
 	title := fmt.Sprintf("DQA: %s (%s): %s/%s", gr.DataCycle, gr.ETLVersion, r.Table, r.Field)
-	body := fmt.Sprintf("**Description**: %s\n**Finding**: %s", r.IssueDescription, r.Finding)
+	body := fmt.Sprintf("**Description**: %s\n**Finding**: %s", r.CheckType, r.Finding)
 
 	labels := []string{
 		dataQualityLabel,

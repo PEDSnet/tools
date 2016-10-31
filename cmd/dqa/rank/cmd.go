@@ -111,7 +111,7 @@ var Cmd = &cobra.Command{
 						r.Table,
 						r.Field,
 						r.Goal,
-						r.IssueCode,
+						r.CheckCode,
 						r.Prevalence,
 						newRankText,
 						oldRankText,

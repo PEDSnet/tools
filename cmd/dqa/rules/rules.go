@@ -86,7 +86,7 @@ type Rule struct {
 	Type       string
 	Table      string
 	Condition  *Condition
-	IssueCode  string
+	CheckCode  string
 	Prevalence string
 	Rank       results.Rank
 }
@@ -101,7 +101,7 @@ func (r *Rule) Matches(s *results.Result) bool {
 		return false
 	}
 
-	if strings.ToLower(s.IssueCode) != r.IssueCode {
+	if strings.ToLower(s.CheckCode) != r.CheckCode {
 		return false
 	}
 

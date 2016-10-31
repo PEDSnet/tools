@@ -47,7 +47,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 			Rule{
 				Table:      "condition_occurrence",
 				Condition:  isPrimaryKey,
-				IssueCode:  "g4-001",
+				CheckCode:  "g4-001",
 				Prevalence: "full",
 				Rank:       results.HighRank,
 			},
@@ -57,7 +57,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 			Rule{
 				Table:      "visit_payer",
 				Condition:  isPrimaryKey,
-				IssueCode:  "g4-001",
+				CheckCode:  "g4-001",
 				Prevalence: "full",
 				Rank:       results.HighRank,
 			},
@@ -69,7 +69,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 			Rule{
 				Table:      "visit_payer",
 				Condition:  isSourceValue,
-				IssueCode:  "g2-013",
+				CheckCode:  "g2-013",
 				Prevalence: "medium",
 				Rank:       results.HighRank,
 			},
@@ -79,7 +79,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 			Rule{
 				Table:      "visit_payer",
 				Condition:  isSourceValue,
-				IssueCode:  "g2-013",
+				CheckCode:  "g2-013",
 				Prevalence: "high",
 				Rank:       results.HighRank,
 			},
@@ -89,7 +89,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 			Rule{
 				Table:      "visit_payer",
 				Condition:  isSourceValue,
-				IssueCode:  "g2-013",
+				CheckCode:  "g2-013",
 				Prevalence: "low",
 				Rank:       results.HighRank,
 			},
@@ -101,7 +101,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 			Rule{
 				Table:      "visit_payer",
 				Condition:  isDateYear,
-				IssueCode:  "g2-002",
+				CheckCode:  "g2-002",
 				Prevalence: "unknown",
 				Rank:       results.HighRank,
 			},
@@ -121,7 +121,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 						return false
 					},
 				},
-				IssueCode:  "g2-013",
+				CheckCode:  "g2-013",
 				Prevalence: "high",
 				Rank:       results.MediumRank,
 			},
@@ -139,7 +139,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 						return false
 					},
 				},
-				IssueCode:  "g2-013",
+				CheckCode:  "g2-013",
 				Prevalence: "low",
 				Rank:       results.MediumRank,
 			},
@@ -151,7 +151,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 			Rule{
 				Table:      "visit_payer",
 				Condition:  isConceptId,
-				IssueCode:  "g3-002",
+				CheckCode:  "g3-002",
 				Prevalence: "unknown",
 				Rank:       results.MediumRank,
 			},
@@ -163,7 +163,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 			Rule{
 				Table:      "visit_payer",
 				Condition:  isOther,
-				IssueCode:  "g3-002",
+				CheckCode:  "g3-002",
 				Prevalence: "unknown",
 				Rank:       results.MediumRank,
 			},
@@ -174,7 +174,7 @@ visit_payer,is source value,G2-013,"in (medium, high, low)",High
 			Rule{
 				Table:      "visit_payer",
 				Condition:  isDateYearTime,
-				IssueCode:  "g2-002",
+				CheckCode:  "g2-002",
 				Prevalence: "unknown",
 				Rank:       results.LowRank,
 			},
@@ -210,8 +210,8 @@ func TestRulesParser(t *testing.T) {
 			t.Errorf("[%d] expected %s, got %s", i, act.Table, exp.Rule.Table)
 		}
 
-		if act.IssueCode != exp.Rule.IssueCode {
-			t.Errorf("[%d] expected %s, got %s", i, act.IssueCode, exp.Rule.IssueCode)
+		if act.CheckCode != exp.Rule.CheckCode {
+			t.Errorf("[%d] expected %s, got %s", i, act.CheckCode, exp.Rule.CheckCode)
 		}
 
 		if act.Prevalence != exp.Rule.Prevalence {
@@ -225,7 +225,7 @@ func TestRulesParser(t *testing.T) {
 		res := &results.Result{
 			Table:      act.Table,
 			Field:      exp.TestField,
-			IssueCode:  act.IssueCode,
+			CheckCode:  act.CheckCode,
 			Prevalence: act.Prevalence,
 		}
 

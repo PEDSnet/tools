@@ -14,7 +14,7 @@ var (
 {{range .Tables}}## {{.Name}}
 {{range .Ranks}}### {{.Name}}
 
-{{range .Fields}}{{range .Results}}{{if .IssueCode}}- [ ] {{$R.Incr}}. **{{.Field}}**: {{if .GithubID}}[#{{.GithubID}}]({{.GithubURL}}) {{end}}{{.IssueDescription}}{{if .Finding}}
+{{range .Fields}}{{range .Results}}{{if .CheckCode}}- [ ] {{$R.Incr}}. **{{.Field}}**: {{if .GithubID}}[#{{.GithubID}}]({{.GithubURL}}) {{end}}{{.CheckType}}{{if .Finding}}
     - Finding: {{.Finding}}{{end}}
 {{end}}{{end}}{{end}}
 {{end}}

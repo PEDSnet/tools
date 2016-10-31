@@ -24,7 +24,7 @@ Inline:
 Use - to read from stdin:
 
   $ pedsnet-dqa query - ./ETLv1 ./ETLv2 ./ETLv3 ./ETLv4
-  select data_version, "table", field issue_code, rank, site_response
+  select data_version, "table", field check_code, rank, site_response
   from results
   where status = 'persistent'
   order by data_version, "table", field
