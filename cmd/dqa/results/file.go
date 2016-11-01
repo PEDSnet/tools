@@ -230,6 +230,10 @@ type Result struct {
 	fileVersion uint8
 }
 
+func (r *Result) FileVersion() uint8 {
+	return r.fileVersion
+}
+
 func (r *Result) SetFileVersion(v uint8) {
 	r.fileVersion = v
 }

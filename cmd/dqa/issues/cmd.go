@@ -1,12 +1,15 @@
 package issues
 
 import (
+	"bytes"
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -14,6 +17,7 @@ import (
 	"github.com/PEDSnet/dqa-tool/uni"
 	"github.com/PEDSnet/tools/cmd/dqa/results"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var Cmd = &cobra.Command{
@@ -45,8 +49,16 @@ Multiple log files can be applied:
 			os.Exit(1)
 		}
 
+		token := viper.GetString("issues.token")
+		if token == "" {
+			cmd.Println("Token required.")
+			os.Exit(1)
+		}
+
 		// Count of issues merged by file name.
 		merged := make(map[string]uint)
+
+		var conflicts []*conflict
 
 		// Process all files
 		for _, fn := range args[1:] {
@@ -62,12 +74,10 @@ Multiple log files can be applied:
 					log.Fatalf("no report file for table: %s", issue.Table)
 				}
 
-				var (
-					found bool
-				)
+				var found bool
 
 				// Scan results for a match. If none is found, add it.
-				for _, r := range report.Results {
+				for i, r := range report.Results {
 					// Ensure we are comparing the correct result.
 					if r.Model != issue.Model || r.ModelVersion != issue.ModelVersion || r.DataVersion != issue.DataVersion || r.Table != issue.Table {
 						cmd.Println("comparing different versions")
@@ -76,7 +86,15 @@ Multiple log files can be applied:
 
 					if r.Field == issue.Field && r.CheckCode == issue.CheckCode {
 						if r.IsUnresolved() || r.IsPersistent() {
-							cmd.Printf("Conflict: %s/%s for issue code %s\n", issue.Table, issue.Field, issue.CheckCode)
+							conflicts = append(conflicts, &conflict{
+								Index:     i,
+								CheckCode: r.CheckCode,
+								Table:     r.Table,
+								Field:     r.Field,
+								Lookup:    lookup,
+								Log:       issue,
+								Secondary: r,
+							})
 						}
 
 						found = true
@@ -84,16 +102,70 @@ Multiple log files can be applied:
 					}
 				}
 
-				if found {
+				// If the issue was not found, append it to the results to be written.
+				if !found {
+					merged[lookup] += 1
+					report.Results = append(report.Results, issue)
+				}
+			}
+		}
+
+		// Call Python process to resolve conflicts...
+		if len(conflicts) > 0 {
+			// Fetch the catalog of issue conflict thresholds.
+			catalog, err := GetCatalog(token)
+			if err != nil {
+				cmd.Print(err)
+				os.Exit(1)
+			}
+
+			var queued []*conflict
+
+			for _, c := range conflicts {
+				checks, ok := catalog[c.CheckCode]
+				if !ok {
+					cmd.Printf("* Unresolved conflict: %s/%s for issue code %s\n", c.Table, c.Field, c.CheckCode)
 					continue
 				}
 
-				if _, ok := merged[lookup]; !ok {
-					merged[lookup] = 0
+				// Set the thresholds.
+				if thres, ok := checks[[2]string{c.Table, c.Field}]; ok {
+					c.UpperThreshold = thres.Upper
+					c.LowerThreshold = thres.Lower
 				}
-				merged[lookup]++
 
-				report.Results = append(report.Results, issue)
+				queued = append(queued, c)
+			}
+
+			if len(queued) > 0 {
+				// Map output by position.
+				resolvedConflicts, err := runResolve(queued)
+				if err != nil {
+					cmd.Println(err)
+				} else {
+					for i, c := range queued {
+						resolved := resolvedConflicts[i]
+
+						// No change.
+						if len(resolved) == 0 {
+							continue
+						}
+
+						// Update the existing issue.
+						file := files[c.Lookup]
+						file.Results[c.Index] = resolved[0]
+
+						cmd.Printf("* Resolved conflict %s/%s for issue code %s\n", c.Table, c.Field, c.CheckCode)
+
+						// Append new ones and update the merged count.
+						if len(resolved) > 1 {
+							file.Results = append(file.Results, resolved[1:]...)
+							cmd.Printf("* Appended %d additional issues", len(resolved)-1)
+						}
+
+						merged[c.Lookup] += uint(len(resolved))
+					}
+				}
 			}
 		}
 
@@ -128,6 +200,46 @@ Multiple log files can be applied:
 			cmd.Printf("Merged %d issues into %s\n", count, name)
 		}
 	},
+}
+
+func runResolve(conflicts []*conflict) ([][]*results.Result, error) {
+	var stdin bytes.Buffer
+	if err := json.NewEncoder(&stdin).Encode(conflicts); err != nil {
+		panic(err)
+	}
+
+	program := viper.GetString("issues.program")
+	var args []string
+
+	resolvers := viper.GetString("issues.resolvers")
+	if resolvers != "" {
+		args = append(args, fmt.Sprintf("--resolvers=%s", resolvers))
+	}
+
+	cmd := exec.Command(program, args...)
+	cmd.Stdin = &stdin
+
+	out, err := cmd.Output()
+	if err != nil {
+		if xerr, ok := err.(*exec.ExitError); ok {
+			return nil, fmt.Errorf("Error executing resolve command: %s\n%s\n", xerr, string(xerr.Stderr))
+		}
+
+		return nil, fmt.Errorf("Error executing resolve command: %s\n", err)
+	}
+
+	var results [][]*results.Result
+	if err := json.Unmarshal(out, &results); err != nil {
+		return nil, fmt.Errorf("Error decoding output from resolve command: %s", err)
+	}
+
+	for i, c := range conflicts {
+		for _, r := range results[i] {
+			r.SetFileVersion(c.Log.FileVersion())
+		}
+	}
+
+	return results, nil
 }
 
 func readIssues(fn string) ([]*results.Result, error) {
@@ -184,6 +296,18 @@ func readIssues(fn string) ([]*results.Result, error) {
 	return issues, nil
 }
 
+type conflict struct {
+	Index          int             `json:"-"`
+	Lookup         string          `json:"-"`
+	CheckCode      string          `json:"-"`
+	Table          string          `json:"-"`
+	Field          string          `json:"-"`
+	Log            *results.Result `json:"log"`
+	Secondary      *results.Result `json:"secondary"`
+	LowerThreshold int             `json:"threshold_low"`
+	UpperThreshold int             `json:"threshold_high"`
+}
+
 type issueFields struct {
 	DataVersion int
 	Table       int
@@ -236,4 +360,15 @@ func checkFields(fields []string) (*issueFields, error) {
 	}
 
 	return &head, nil
+}
+
+func init() {
+	flags := Cmd.Flags()
+	flags.String("token", "", "Token used to authenticate with GitHub.")
+	flags.String("program", "resolve.py", "Path to resolve program.")
+	flags.String("resolvers", "", "Path to resolver modules.")
+
+	viper.BindPFlag("issues.token", flags.Lookup("token"))
+	viper.BindPFlag("issues.program", flags.Lookup("program"))
+	viper.BindPFlag("issues.resolvers", flags.Lookup("resolvers"))
 }
