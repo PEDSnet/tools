@@ -146,24 +146,30 @@ Multiple log files can be applied:
 					for i, c := range queued {
 						resolved := resolvedConflicts[i]
 
+						if resolved.Error != "" {
+							cmd.Printf("* Error resolving conflict %s/%s for issue code %s\n", c.Table, c.Field, c.CheckCode)
+							cmd.Printf("\n\t%s\n", strings.Replace(resolved.Error, "\n", "\n\t", -1))
+							continue
+						}
+
 						// No change.
-						if len(resolved) == 0 {
+						if len(resolved.Issues) == 0 {
 							continue
 						}
 
 						// Update the existing issue.
 						file := files[c.Lookup]
-						file.Results[c.Index] = resolved[0]
+						file.Results[c.Index] = resolved.Issues[0]
 
 						cmd.Printf("* Resolved conflict %s/%s for issue code %s\n", c.Table, c.Field, c.CheckCode)
 
 						// Append new ones and update the merged count.
-						if len(resolved) > 1 {
-							file.Results = append(file.Results, resolved[1:]...)
-							cmd.Printf("* Appended %d additional issues", len(resolved)-1)
+						if len(resolved.Issues) > 1 {
+							file.Results = append(file.Results, resolved.Issues[1:]...)
+							cmd.Printf("- Appended %d additional issue(s)\n", len(resolved.Issues)-1)
 						}
 
-						merged[c.Lookup] += uint(len(resolved))
+						merged[c.Lookup] += uint(len(resolved.Issues))
 					}
 				}
 			}
@@ -202,7 +208,12 @@ Multiple log files can be applied:
 	},
 }
 
-func runResolve(conflicts []*conflict) ([][]*results.Result, error) {
+type resolveResult struct {
+	Issues []*results.Result
+	Error  string
+}
+
+func runResolve(conflicts []*conflict) ([]*resolveResult, error) {
 	var stdin bytes.Buffer
 	if err := json.NewEncoder(&stdin).Encode(conflicts); err != nil {
 		panic(err)
@@ -228,13 +239,13 @@ func runResolve(conflicts []*conflict) ([][]*results.Result, error) {
 		return nil, fmt.Errorf("Error executing resolve command: %s\n", err)
 	}
 
-	var results [][]*results.Result
+	var results []*resolveResult
 	if err := json.Unmarshal(out, &results); err != nil {
 		return nil, fmt.Errorf("Error decoding output from resolve command: %s", err)
 	}
 
 	for i, c := range conflicts {
-		for _, r := range results[i] {
+		for _, r := range results[i].Issues {
 			r.SetFileVersion(c.Log.FileVersion())
 		}
 	}
@@ -249,9 +260,7 @@ func readIssues(fn string) ([]*results.Result, error) {
 	}
 	defer f.Close()
 
-	r := uni.New(f)
-
-	cr := csv.NewReader(r)
+	cr := csv.NewReader(uni.New(f))
 	fields, err := cr.Read()
 
 	head, err := checkFields(fields)

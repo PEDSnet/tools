@@ -152,7 +152,7 @@ func migrateCodes(path string) error {
 	descpos := -1
 
 	for i, col := range head {
-		switch strings.ToLower(col) {
+		switch strings.Replace(strings.ToLower(col), " ", "_", -1) {
 		case "check_code", "issue_code":
 			codepos = i
 		case "check_type", "issue_description":
@@ -161,7 +161,7 @@ func migrateCodes(path string) error {
 	}
 
 	if codepos == -1 {
-		log.Println("no issue code column. skipping")
+		log.Println("no check code column. skipping")
 		return nil
 	}
 

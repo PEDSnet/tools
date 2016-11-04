@@ -88,11 +88,13 @@ func GetCatalog(token string) (Catalog, error) {
 
 		// Only process codes that are relevant.
 		checkCode := checkCodeRe.FindStringSubmatch(*file.Name)[1]
-		if _, ok := checkIssuesCodes[checkCode]; !ok {
-			continue
-		}
 
-		targetCode := checkIssuesCodes[checkCode]
+		var targetCode string
+		if _, ok := checkIssuesCodes[checkCode]; ok {
+			targetCode = checkIssuesCodes[checkCode]
+		} else {
+			targetCode = checkCode
+		}
 
 		// Fetch to get contents.
 		file, _, _, err = client.Repositories.GetContents(owner, repo, *file.Path, nil)
