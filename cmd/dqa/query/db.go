@@ -67,7 +67,17 @@ func (db *DB) Load(header []string, results []*results.Result) error {
 	}
 
 	for i, c := range header {
-		header[i] = fmt.Sprintf("`%s`", strings.Replace(strings.ToLower(c), " ", "_", -1))
+		c = strings.Replace(strings.ToLower(c), " ", "_", -1)
+
+		// Rename.
+		switch c {
+		case "issue_code":
+			c = "check_code"
+		case "issue_description":
+			c = "check_type"
+		}
+
+		header[i] = fmt.Sprintf("`%s`", c)
 	}
 
 	params := make([]string, len(header))
