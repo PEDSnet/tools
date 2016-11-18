@@ -7,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -64,6 +66,7 @@ Multiple log files can be applied:
 		for _, fn := range args[1:] {
 			issues, err := readIssues(fn)
 			if err != nil {
+				log.Printf("error reading issues: %s", err)
 				continue
 			}
 
@@ -254,6 +257,38 @@ func runResolve(conflicts []*conflict) ([]*resolveResult, error) {
 }
 
 func readIssues(fn string) ([]*results.Result, error) {
+	fi, err := os.Stat(fn)
+	if err != nil {
+		return nil, err
+	}
+
+	// Directory. Read files in directory, but not recursively.
+	if fi.IsDir() {
+		var allissues []*results.Result
+
+		files, err := ioutil.ReadDir(fn)
+		if err != nil {
+			return nil, fmt.Errorf("error reading directory: %s", err)
+		}
+
+		for _, fi := range files {
+			// No recursion.
+			if fi.IsDir() {
+				continue
+			}
+
+			p := path.Join(fn, fi.Name())
+			issues, err := readIssues(p)
+			if err != nil {
+				return nil, fmt.Errorf("error reading issues from %s: %s", p, err)
+			}
+
+			allissues = append(allissues, issues...)
+		}
+
+		return allissues, nil
+	}
+
 	f, err := os.Open(fn)
 	if err != nil {
 		return nil, err
@@ -355,10 +390,6 @@ func checkFields(fields []string) (*issueFields, error) {
 
 		case "prevalence":
 			head.Prevalence = i
-
-		default:
-			log.Printf("unknown field %s\n", field)
-			continue
 		}
 
 		seen++
