@@ -28,10 +28,10 @@ var Cmd = &cobra.Command{
 	Long: ``,
 
 	Example: `Merge issues into a secondary report.
-  pedsnet-dqa merge-issues SecondaryReports/CHOP/ETLv5 person_issue.csv
+  pedsnet-dqa merge-issues --token=... SecondaryReports/CHOP/ETLv5 person_issue.csv
 
 Multiple log files can be applied:
-  pedsnet-dqa merge-issues SecondaryReports/CHOP/ETLv5 *.csv`,
+  pedsnet-dqa merge-issues --token=... SecondaryReports/CHOP/ETLv5 *.csv`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) < 2 {
