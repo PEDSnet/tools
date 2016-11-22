@@ -239,7 +239,7 @@ func (r *Result) SetFileVersion(v uint8) {
 }
 
 func (r *Result) Fields() []string {
-	a := strings.Split(",", r.Field)
+	a := strings.Split(r.Field, ",")
 	for i, s := range a {
 		a[i] = strings.TrimSpace(s)
 	}
