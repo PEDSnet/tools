@@ -34,10 +34,10 @@ The `merge-issues` command reads issues from a separate CSV file produced some e
 
 Each row is added to existing secondary report unless the secondary report already contains an record for the same `table`, `field`, and `issue_code`. In this case a conflict warning is printed to the console for the user to handle manually.
 
-To run, use the `merge-issues` subcommand. The first argument is the secondary report directory. The remaining arguments are the files containing the issues to be merged.
+To run, use the `merge-issues` subcommand. A GitHub token must be supplied since it fetches conflict threshold data from files on GitHub. The first argument is the secondary report directory. The remaining arguments are the files containing the issues to be merged or a directory containing those files.
 
 ```
-$ pedsnet-dqa merge-issues ./ETLv9 care_site_issues.csv measurement_issues.csv
+$ pedsnet-dqa merge-issues --token=... ./ETLv9 care_site_issues.csv measurement_issues.csv
 ```
 
 ## Rank Issues
