@@ -146,6 +146,10 @@ Multiple log files can be applied:
 				if err != nil {
 					cmd.Println(err)
 				} else {
+					// Lookup of all resolved issues to compare with updated results
+					// in the existing files.
+					resolvedIndex := make(map[*results.Result]struct{})
+
 					for i, c := range queued {
 						resolved := resolvedConflicts[i]
 
@@ -162,7 +166,17 @@ Multiple log files can be applied:
 
 						// Update the existing issue.
 						file := files[c.Lookup]
-						file.Results[c.Index] = resolved.Issues[0]
+
+						// Replace existing issue if it has not already been replaced
+						// otherwise append to the set. This can occur if there are two
+						// issues record for the same field which would be associated with
+						// the same index of the original file.
+						if _, ok := resolvedIndex[file.Results[c.Index]]; !ok {
+							file.Results[c.Index] = resolved.Issues[0]
+							resolvedIndex[resolved.Issues[0]] = struct{}{}
+						} else {
+							file.Results = append(file.Results, resolved.Issues[0])
+						}
 
 						cmd.Printf("* Resolved conflict %s/%s for issue code %s\n", c.Table, c.Field, c.CheckCode)
 
