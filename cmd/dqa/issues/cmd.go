@@ -58,7 +58,8 @@ Multiple log files can be applied:
 		}
 
 		// Count of issues merged by file name.
-		merged := make(map[string]uint)
+		merged := make(map[string]int)
+		appendMerge := make(map[string][]*results.Result)
 
 		var conflicts []*conflict
 
@@ -108,7 +109,7 @@ Multiple log files can be applied:
 				// If the issue was not found, append it to the results to be written.
 				if !found {
 					merged[lookup] += 1
-					report.Results = append(report.Results, issue)
+					appendMerge[lookup] = append(appendMerge[lookup], issue)
 				}
 			}
 		}
@@ -186,10 +187,16 @@ Multiple log files can be applied:
 							cmd.Printf("- Appended %d additional issue(s)\n", len(resolved.Issues)-1)
 						}
 
-						merged[c.Lookup] += uint(len(resolved.Issues))
+						merged[c.Lookup] += len(resolved.Issues)
 					}
 				}
 			}
+		}
+
+		// Append new issues.
+		for lookup, issues := range appendMerge {
+			file := files[lookup]
+			file.Results = append(file.Results, issues...)
 		}
 
 		if len(merged) == 0 {
