@@ -55,20 +55,17 @@ flag which ensures all persistent issues are copied to the new template.
 		// Derived value.
 		dataVersion := fmt.Sprintf("%s-%s-%s-%s", modelName, modelVersion, siteName, dataCycle)
 
-		var files map[string]*results.File
+		var pfiles map[string]*results.File
 
 		// Load the previous set of results.
 		if copyPersistent != "" {
 			var err error
-			files, err = results.ReadFromDir(copyPersistent)
+			pfiles, err = results.ReadFromDir(copyPersistent)
 
 			if err != nil {
 				cmd.Println(err)
 				os.Exit(1)
 			}
-		} else {
-			// Initialize to prevent lookup panics below.
-			files = make(map[string]*results.File)
 		}
 
 		// Create the necessary directories to write the files to.
@@ -98,63 +95,32 @@ flag which ensures all persistent issues are copied to the new template.
 				continue
 			}
 
-			// Initialize the file.
-			var file *os.File
-			var err error
-
 			// Path to output file.
 			path := filepath.Join(outDir, fmt.Sprintf("%s.csv", table.Name))
 
-			if file, err = os.Create(path); err != nil {
+			file, err := os.Create(path)
+			if err != nil {
 				cmd.Printf("Error creating output file: %s", err)
 				os.Exit(1)
 			}
 
+			// New writer for issues. At a minimum this will add the header.
 			w := results.NewWriter(file)
 
-			// Generate empty files with just the header.
-			if copyPersistent == "" {
-				w.Flush()
-				file.Close()
-				continue
-			}
+			// Copy persistent issues.
+			if copyPersistent != "" {
+				if pfile, ok := pfiles[fmt.Sprintf("%s.csv", table.Name)]; ok {
+					for _, r := range pfile.Results {
+						if r.IsPersistent() || r.IsUnresolved() {
+							// Update for this version.
+							r.Model = modelName
+							r.ModelVersion = modelVersion
+							r.DataVersion = dataVersion
+							r.DQAVersion = dqaVersion
 
-			// Build an index of persistent and outstanding issues.
-			var index prevIssues
-
-			// Check if there is an existing file being copied.
-			if file, ok := files[fmt.Sprintf("%s.csv", table.Name)]; ok {
-				index = indexPreviousIssues(file)
-			}
-
-			for _, field := range table.Fields.List() {
-				res := results.NewResult()
-				res.Model = modelName
-				res.ModelVersion = modelVersion
-				res.DataVersion = dataVersion
-				res.DQAVersion = dqaVersion
-				res.Table = table.Name
-				res.Field = field.Name
-
-				// Find persistent issues for the field and copy them.
-				// Note there may be multiple for the same field.
-				if l, ok := index[field.Name]; ok {
-					for _, r := range l {
-						res.CheckCode = r.CheckCode
-						res.CheckType = r.CheckType
-						res.Finding = r.Finding
-						res.Prevalence = r.Prevalence
-						res.Rank = r.Rank
-						res.SiteResponse = r.SiteResponse
-						res.Cause = r.Cause
-						res.Status = r.Status
-						res.Reviewer = r.Reviewer
-						res.GithubID = r.GithubID
-						res.Method = r.Method
-
-						w.Write(res)
-						count++
-						continue
+							count++
+							w.Write(r)
+						}
 					}
 				}
 			}
@@ -169,25 +135,6 @@ flag which ensures all persistent issues are copied to the new template.
 			cmd.Printf("Copied %d issues from '%s'\n", count, copyPersistent)
 		}
 	},
-}
-
-// Index of field to a set of results.
-type prevIssues map[string][]*results.Result
-
-// Index persistent issues by field. Multiple issues can be present
-// so a slice is used here.
-func indexPreviousIssues(f *results.File) prevIssues {
-	index := make(prevIssues)
-
-	for _, r := range f.Results {
-		if r.IsPersistent() || r.IsUnresolved() {
-			results := index[r.Field]
-			results = append(results, r)
-			index[r.Field] = results
-		}
-	}
-
-	return index
 }
 
 func init() {
