@@ -15,9 +15,11 @@ import (
 
 const (
 	owner = "PEDSnet"
-	repo  = "Data-Quality-Analysis"
 
-	catalogDirPath           = "DQA_Catalog/"
+	catalogRepo = "Data-Quality-Analysis"
+	catalogPath = "DQA_Catalog/"
+
+	conflictRepo             = "Data-Quality-Results"
 	conflictAssociationsPath = "SecondaryReports/ConflictResolution/conflict_associations.csv"
 )
 
@@ -41,7 +43,7 @@ func GetCatalog(token string) (Catalog, error) {
 	client := github.NewClient(tc)
 
 	// Get conflict associations
-	fileContent, _, _, err := client.Repositories.GetContents(owner, repo, conflictAssociationsPath, nil)
+	fileContent, _, _, err := client.Repositories.GetContents(owner, conflictRepo, conflictAssociationsPath, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +72,7 @@ func GetCatalog(token string) (Catalog, error) {
 	}
 
 	// Fetch thresholds from conflict check mappings.
-	_, dirContent, _, err := client.Repositories.GetContents(owner, repo, catalogDirPath, nil)
+	_, dirContent, _, err := client.Repositories.GetContents(owner, catalogRepo, catalogPath, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +99,7 @@ func GetCatalog(token string) (Catalog, error) {
 		}
 
 		// Fetch to get contents.
-		file, _, _, err = client.Repositories.GetContents(owner, repo, *file.Path, nil)
+		file, _, _, err = client.Repositories.GetContents(owner, catalogRepo, *file.Path, nil)
 		if err != nil {
 			return nil, err
 		}
