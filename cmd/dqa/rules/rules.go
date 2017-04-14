@@ -10,7 +10,7 @@ import (
 	dms "github.com/chop-dbhi/data-models-service/client"
 )
 
-const repoURL = "https://api.github.com/repos/PEDSnet/Data-Quality/contents/%s"
+const repoURL = "https://api.github.com/repos/PEDSnet/Data-Quality-Results/contents/%s"
 
 var rulePaths = map[string]string{
 	"Admin":       "SecondaryReports/Ranking/RuleSet1_Admin.csv",

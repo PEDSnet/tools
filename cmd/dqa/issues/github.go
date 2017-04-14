@@ -15,7 +15,7 @@ import (
 
 const (
 	owner = "PEDSnet"
-	repo  = "Data-Quality"
+	repo  = "Data-Quality-Analysis"
 
 	catalogDirPath           = "DQA_Catalog/"
 	conflictAssociationsPath = "SecondaryReports/ConflictResolution/conflict_associations.csv"
