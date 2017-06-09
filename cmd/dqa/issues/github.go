@@ -2,6 +2,7 @@ package issues
 
 import (
 	"bytes"
+	"context"
 	"encoding/csv"
 	"io"
 	"regexp"
@@ -38,9 +39,9 @@ func GetCatalog(token string) (Catalog, error) {
 		AccessToken: token,
 	}
 
-	ctx := oauth2.NoContext
+	ctx := context.Background()
 	ts := oauth2.StaticTokenSource(tk)
-	tc := oauth2.NewClient(context, ts)
+	tc := oauth2.NewClient(oauth2.NoContext, ts)
 
 	client := github.NewClient(tc)
 

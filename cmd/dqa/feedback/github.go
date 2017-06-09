@@ -263,9 +263,9 @@ func NewGitHubReport(site, etl, cycle, token string) *GithubReport {
 		AccessToken: token,
 	}
 
-	ctx := oauth2.NoContext
+	ctx := context.Background()
 	ts := oauth2.StaticTokenSource(tk)
-	tc := oauth2.NewClient(ctx, ts)
+	tc := oauth2.NewClient(oauth2.NoContext, ts)
 
 	client := github.NewClient(tc)
 
