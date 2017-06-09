@@ -69,7 +69,7 @@ func (gr *GithubReport) FetchSummaryIssue(ir *github.IssueRequest) (*github.Issu
 		Labels: *ir.Labels,
 	}
 
-	issues, _, err := gr.client.Issues.ListByRepo(oauth2.NoContext, repoOwner, gr.Site, opts)
+	issues, _, err := gr.client.Issues.ListByRepo(gr.context, repoOwner, gr.Site, opts)
 	if err != nil {
 		return nil, err
 	}
