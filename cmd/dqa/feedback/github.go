@@ -4,6 +4,7 @@ package feedback
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"strings"
 
@@ -54,6 +55,7 @@ type GithubReport struct {
 	results results.Results
 
 	client *github.Client
+	ctx    context.Context
 }
 
 func (gr *GithubReport) Len() int {
@@ -67,7 +69,7 @@ func (gr *GithubReport) FetchSummaryIssue(ir *github.IssueRequest) (*github.Issu
 		Labels: *ir.Labels,
 	}
 
-	issues, _, err := gr.client.Issues.ListByRepo(repoOwner, gr.Site, opts)
+	issues, _, err := gr.client.Issues.ListByRepo(gr.ctx, repoOwner, gr.Site, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +110,7 @@ func (gr *GithubReport) FetchIssues() ([]*github.Issue, error) {
 	var issues []*github.Issue
 
 	for {
-		page, resp, err := gr.client.Issues.ListByRepo(repoOwner, gr.Site, opts)
+		page, resp, err := gr.client.Issues.ListByRepo(gr.ctx, repoOwner, gr.Site, opts)
 		if err != nil {
 			return nil, err
 		}
@@ -127,13 +129,13 @@ func (gr *GithubReport) FetchIssues() ([]*github.Issue, error) {
 
 func (gr *GithubReport) CreateComment(id int, body string) error {
 	c := github.IssueComment{Body: &body}
-	_, _, err := gr.client.Issues.CreateComment(repoOwner, gr.Site, id, &c)
+	_, _, err := gr.client.Issues.CreateComment(gr.ctx, repoOwner, gr.Site, id, &c)
 	return err
 }
 
 // FetchIssue fetches an issue by id.
 func (gr *GithubReport) FetchIssue(id int) (*github.Issue, error) {
-	issue, _, err := gr.client.Issues.Get(repoOwner, gr.Site, id)
+	issue, _, err := gr.client.Issues.Get(gr.ctx, repoOwner, gr.Site, id)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +149,7 @@ func (gr *GithubReport) OpenIssue(id int) error {
 		State: &state,
 	}
 
-	_, _, err := gr.client.Issues.Edit(repoOwner, gr.Site, id, ir)
+	_, _, err := gr.client.Issues.Edit(gr.ctx, repoOwner, gr.Site, id, ir)
 	if err != nil {
 		return err
 	}
@@ -234,7 +236,7 @@ func (gr *GithubReport) BuildIssue(r *results.Result) (*github.IssueRequest, err
 
 // AddLabels the minimum labels are set on the issue.
 func (gr *GithubReport) AddLabels(num int, labels []string) ([]*github.Label, error) {
-	allLabels, _, err := gr.client.Issues.AddLabelsToIssue(repoOwner, gr.Site, num, labels)
+	allLabels, _, err := gr.client.Issues.AddLabelsToIssue(gr.ctx, repoOwner, gr.Site, num, labels)
 
 	if err != nil {
 		return nil, err
@@ -246,7 +248,7 @@ func (gr *GithubReport) AddLabels(num int, labels []string) ([]*github.Label, er
 // PostIssue sends a request to the GitHub API to create an issue.
 // Upon success, a concrete issue is returned with the ID.
 func (gr *GithubReport) PostIssue(ir *github.IssueRequest) (*github.Issue, error) {
-	issue, _, err := gr.client.Issues.Create(repoOwner, gr.Site, ir)
+	issue, _, err := gr.client.Issues.Create(gr.ctx, repoOwner, gr.Site, ir)
 
 	if err != nil {
 		return nil, err
@@ -260,6 +262,8 @@ func NewGitHubReport(site, etl, cycle, token string) *GithubReport {
 	tk := &oauth2.Token{
 		AccessToken: token,
 	}
+
+	ctx := context.Background()
 	ts := oauth2.StaticTokenSource(tk)
 	tc := oauth2.NewClient(oauth2.NoContext, ts)
 
@@ -270,5 +274,6 @@ func NewGitHubReport(site, etl, cycle, token string) *GithubReport {
 		ETLVersion: etl,
 		DataCycle:  cycle,
 		client:     client,
+		ctx:        ctx,
 	}
 }

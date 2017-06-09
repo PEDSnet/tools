@@ -16,7 +16,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/PEDSnet/dqa-tool/uni"
+	"github.com/PEDSnet/tools/cmd/dqa/uni"
 	"github.com/PEDSnet/tools/cmd/dqa/results"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
