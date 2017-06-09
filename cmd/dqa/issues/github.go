@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/PEDSnet/dqa-tool/uni"
+	"github.com/PEDSnet/tools/cmd/dqa/uni"
 	"github.com/google/go-github/github"
 	"golang.org/x/oauth2"
 )
@@ -37,13 +37,15 @@ func GetCatalog(token string) (Catalog, error) {
 	tk := &oauth2.Token{
 		AccessToken: token,
 	}
+
+	context := oauth2.NoContext
 	ts := oauth2.StaticTokenSource(tk)
-	tc := oauth2.NewClient(oauth2.NoContext, ts)
+	tc := oauth2.NewClient(context, ts)
 
 	client := github.NewClient(tc)
 
 	// Get conflict associations
-	fileContent, _, _, err := client.Repositories.GetContents(owner, conflictRepo, conflictAssociationsPath, nil)
+	fileContent, _, _, err := client.Repositories.GetContents(context, owner, conflictRepo, conflictAssociationsPath, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +74,7 @@ func GetCatalog(token string) (Catalog, error) {
 	}
 
 	// Fetch thresholds from conflict check mappings.
-	_, dirContent, _, err := client.Repositories.GetContents(owner, catalogRepo, catalogPath, nil)
+	_, dirContent, _, err := client.Repositories.GetContents(context, owner, catalogRepo, catalogPath, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +101,7 @@ func GetCatalog(token string) (Catalog, error) {
 		}
 
 		// Fetch to get contents.
-		file, _, _, err = client.Repositories.GetContents(owner, catalogRepo, *file.Path, nil)
+		file, _, _, err = client.Repositories.GetContents(context, owner, catalogRepo, *file.Path, nil)
 		if err != nil {
 			return nil, err
 		}
