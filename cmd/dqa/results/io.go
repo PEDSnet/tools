@@ -110,6 +110,7 @@ func (r *Reader) Read() (*Result, error) {
 
 	if r.head.fileVersion >= FileVersion3 {
 		res.Method = row[r.head.Method]
+		res.CheckAlias = row[r.head.CheckAlias]
 	}
 
 	// Removed in later version.
@@ -203,7 +204,7 @@ func (w *Writer) WriteAll(results []*Result) error {
 // Flush flushes the written results to the underlying writer.
 func (w *Writer) Flush() error {
 	if !w.head {
-		if err := w.csv.Write(fileHeader(FileVersion3)); err != nil {
+		if err := w.csv.Write(fileHeader(FileVersion4)); err != nil {
 			return err
 		}
 
