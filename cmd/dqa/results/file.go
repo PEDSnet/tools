@@ -258,6 +258,43 @@ type Result struct {
 	fileVersion uint8
 }
 
+func (r *Result) Migrate() *Result {
+
+	res := &Result{
+		Model:        r.Model,
+		ModelVersion: r.ModelVersion,
+		DataVersion:  r.DataVersion,
+		DQAVersion:   r.DQAVersion,
+		Table:        r.Table,
+		Field:        r.Field,
+		CheckCode:    r.CheckCode,
+		CheckType:    r.CheckType,
+		Finding:      r.Finding,
+		Prevalence:   r.Prevalence,
+		Rank:         r.Rank,
+		rank:         r.rank,
+		Cause:        r.Cause,
+		Status:       r.Status,
+
+		fileVersion: currentFileVersion,
+	}
+
+	// Added in later version.
+	if r.fileVersion < FileVersion2 {
+		res.GithubID = "N/A"
+	}
+
+	if r.fileVersion < FileVersion3 {
+		res.Method = "N/A"
+	}
+
+	if r.fileVersion < FileVersion4 {
+		res.CheckAlias = "N/A"
+	}
+
+	return res
+}
+
 func (r *Result) FileVersion() uint8 {
 	return r.fileVersion
 }
