@@ -110,7 +110,6 @@ func (r *Reader) Read() (*Result, error) {
 
 	if r.head.fileVersion >= FileVersion3 {
 		res.Method = row[r.head.Method]
-		res.CheckAlias = row[r.head.CheckAlias]
 	}
 
 	// Removed in later version.
@@ -118,6 +117,10 @@ func (r *Reader) Read() (*Result, error) {
 		res.Goal = row[r.head.Goal]
 		res.SiteResponse = row[r.head.SiteResponse]
 		res.Reviewer = row[r.head.Reviewer]
+	}
+
+	if r.head.fileVersion >= FileVersion4 {
+		res.CheckAlias = row[r.head.CheckAlias]
 	}
 
 	return res, nil
