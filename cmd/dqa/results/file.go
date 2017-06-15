@@ -275,21 +275,11 @@ func (r *Result) Migrate() *Result {
 		rank:         r.rank,
 		Cause:        r.Cause,
 		Status:       r.Status,
+		GithubID:     r.GithubID,
+		Method:       r.Method,
+		CheckAlias:   r.CheckAlias,
 
 		fileVersion: currentFileVersion,
-	}
-
-	// Added in later version.
-	if r.fileVersion < FileVersion2 {
-		res.GithubID = "N/A"
-	}
-
-	if r.fileVersion < FileVersion3 {
-		res.Method = "N/A"
-	}
-
-	if r.fileVersion < FileVersion4 {
-		res.CheckAlias = "N/A"
 	}
 
 	return res
