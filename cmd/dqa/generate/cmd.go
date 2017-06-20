@@ -112,14 +112,17 @@ flag which ensures all persistent issues are copied to the new template.
 				if pfile, ok := pfiles[fmt.Sprintf("%s.csv", table.Name)]; ok {
 					for _, r := range pfile.Results {
 						if r.IsPersistent() || r.IsUnresolved() {
+
+							res := r.Migrate()
+
 							// Update for this version.
-							r.Model = modelName
-							r.ModelVersion = modelVersion
-							r.DataVersion = dataVersion
-							r.DQAVersion = dqaVersion
+							res.Model = modelName
+							res.ModelVersion = modelVersion
+							res.DataVersion = dataVersion
+							res.DQAVersion = dqaVersion
 
 							count++
-							w.Write(r)
+							w.Write(res)
 						}
 					}
 				}

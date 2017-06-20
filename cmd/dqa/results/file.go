@@ -21,7 +21,10 @@ const (
 	// Add the Method column and removes Reviewer, Site Response, and Goal.
 	FileVersion3
 
-	currentFileVersion = FileVersion3
+	// Add the Check Alias column
+	FileVersion4
+
+	currentFileVersion = FileVersion4
 )
 
 var githubIssueURL = "https://github.com/PEDSnet/%s/issues/%s"
@@ -101,6 +104,26 @@ func fileHeader(v uint8) []string {
 			"Github ID",
 			"Method",
 		}
+
+	case FileVersion4:
+		return []string{
+			"Model",
+			"Model Version",
+			"Data Version",
+			"DQA Version",
+			"Table",
+			"Field",
+			"Check Code",
+			"Check Alias",
+			"Check Type",
+			"Finding",
+			"Prevalence",
+			"Rank",
+			"Cause",
+			"Status",
+			"Github ID",
+			"Method",
+		}
 	}
 
 	panic("unknown file version")
@@ -116,6 +139,7 @@ type FileHeader struct {
 	Field        int
 	Goal         int
 	CheckCode    int
+	CheckAlias   int
 	CheckType    int
 	Finding      int
 	Prevalence   int
@@ -175,6 +199,9 @@ func ParseFileHeader(row []string) (*FileHeader, error) {
 			h.Goal = i
 		case "check_code", "issue_code":
 			h.CheckCode = i
+		case "check_alias":
+			h.CheckAlias = i
+			h.fileVersion = FileVersion4
 		case "check_type", "issue_description":
 			h.CheckType = i
 		case "finding":
@@ -215,6 +242,7 @@ type Result struct {
 	Field        string `json:"field"`
 	Goal         string `json:"goal"`
 	CheckCode    string `json:"check_code"`
+	CheckAlias   string `json:"check_alias"`
 	CheckType    string `json:"check_type"`
 	Finding      string `json:"finding"`
 	Prevalence   string `json:"prevalence"`
@@ -228,6 +256,33 @@ type Result struct {
 
 	rank        string
 	fileVersion uint8
+}
+
+func (r *Result) Migrate() *Result {
+
+	res := &Result{
+		Model:        r.Model,
+		ModelVersion: r.ModelVersion,
+		DataVersion:  r.DataVersion,
+		DQAVersion:   r.DQAVersion,
+		Table:        r.Table,
+		Field:        r.Field,
+		CheckCode:    r.CheckCode,
+		CheckType:    r.CheckType,
+		Finding:      r.Finding,
+		Prevalence:   r.Prevalence,
+		Rank:         r.Rank,
+		rank:         r.rank,
+		Cause:        r.Cause,
+		Status:       r.Status,
+		GithubID:     r.GithubID,
+		Method:       r.Method,
+		CheckAlias:   r.CheckAlias,
+
+		fileVersion: currentFileVersion,
+	}
+
+	return res
 }
 
 func (r *Result) FileVersion() uint8 {
@@ -302,6 +357,26 @@ func (r *Result) Row() []string {
 			r.Table,
 			r.Field,
 			r.CheckCode,
+			r.CheckType,
+			r.Finding,
+			r.Prevalence,
+			r.Rank.String(),
+			r.Cause,
+			r.Status,
+			r.GithubID,
+			r.Method,
+		}
+
+	case FileVersion4:
+		return []string{
+			r.Model,
+			r.ModelVersion,
+			r.DataVersion,
+			r.DQAVersion,
+			r.Table,
+			r.Field,
+			r.CheckCode,
+			r.CheckAlias,
 			r.CheckType,
 			r.Finding,
 			r.Prevalence,
