@@ -30,6 +30,9 @@ var (
 	statusLabel    = Labeler("Status")
 )
 
+// Eventually we will make this more dynamic, at least for line numbers
+var githubCheckURL = "https://github.com/PEDSnet/Data-Quality-Analysis/blob/master/Level1/library/%s.R#L16"
+
 func Labeler(p string) func(interface{}) string {
 	return func(v interface{}) string {
 		return fmt.Sprintf("%s: %s", p, v)
@@ -202,7 +205,14 @@ func (gr *GithubReport) BuildIssue(r *results.Result) (*github.IssueRequest, err
 		title = fmt.Sprintf("DQA: %s (%s): %s/{%s}", gr.DataCycle, gr.ETLVersion, r.Table, r.Field)
 	}
 
-	body := fmt.Sprintf("**Description**: %s\n**Finding**: %s", r.CheckType, r.Finding)
+	var body string
+
+	if r.CheckAlias == "" {
+		body = fmt.Sprintf("**Description**: %s\n**Finding**: %s", r.CheckType, r.Finding)
+	} else {
+		url := fmt.Sprintf(githubCheckURL, r.CheckAlias)
+		body = fmt.Sprintf("**Description**: [%s](%s)\n**Finding**: %s", r.CheckType, url, r.Finding)
+	}
 
 	labels := []string{
 		dataQualityLabel,
