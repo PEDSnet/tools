@@ -210,8 +210,8 @@ func (gr *GithubReport) BuildIssue(r *results.Result) (*github.IssueRequest, err
 	if r.CheckAlias == "" {
 		body = fmt.Sprintf("**Description**: %s\n**Finding**: %s", r.CheckType, r.Finding)
 	} else {
-		url := fmt.Sprintf(githubCheckURL, r.CheckAlias)
-		body = fmt.Sprintf("**Description**: [%s](%s)\n**Finding**: %s", r.CheckType, url, r.Finding)
+		url := fmt.Sprintf(githubCheckURL, strings.TrimSpace(r.CheckAlias))
+		body = fmt.Sprintf("**Description**: [%s](%s)\n**Finding**: %s", strings.Title(r.CheckType), url, r.Finding)
 	}
 
 	labels := []string{

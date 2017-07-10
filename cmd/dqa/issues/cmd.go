@@ -16,8 +16,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/PEDSnet/tools/cmd/dqa/uni"
 	"github.com/PEDSnet/tools/cmd/dqa/results"
+	"github.com/PEDSnet/tools/cmd/dqa/uni"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -342,6 +342,7 @@ func readIssues(fn string) ([]*results.Result, error) {
 			Table:       row[head.Table],
 			Field:       row[head.Field],
 			CheckCode:   row[head.CheckCode],
+			CheckAlias:  row[head.CheckAlias],
 			CheckType:   row[head.CheckType],
 			Finding:     row[head.Finding],
 			Prevalence:  row[head.Prevalence],
@@ -349,7 +350,7 @@ func readIssues(fn string) ([]*results.Result, error) {
 			Method:      "auto",
 		}
 
-		res.SetFileVersion(3)
+		res.SetFileVersion(4)
 
 		toks := strings.Split(res.DataVersion, "-")
 		res.Model = toks[0]
@@ -378,12 +379,13 @@ type issueFields struct {
 	Table       int
 	Field       int
 	CheckCode   int
+	CheckAlias  int
 	CheckType   int
 	Finding     int
 	Prevalence  int
 }
 
-const numFields = 7
+const numFields = 8
 
 func checkFields(fields []string) (*issueFields, error) {
 	var head issueFields
@@ -391,7 +393,7 @@ func checkFields(fields []string) (*issueFields, error) {
 
 	for i, field := range fields {
 		switch field {
-		case "data_version":
+		case "data_version", "g_data_version":
 			head.DataVersion = i
 
 		case "table":
@@ -405,6 +407,9 @@ func checkFields(fields []string) (*issueFields, error) {
 
 		case "check_type", "issue_description":
 			head.CheckType = i
+
+		case "check_alias", "alias":
+			head.CheckAlias = i
 
 		case "finding":
 			head.Finding = i
