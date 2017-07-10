@@ -201,7 +201,9 @@ func ParseFileHeader(row []string) (*FileHeader, error) {
 			h.CheckCode = i
 		case "check_alias":
 			h.CheckAlias = i
-			h.fileVersion = FileVersion4
+			if h.fileVersion < FileVersion4 {
+				h.fileVersion = FileVersion4
+			}
 		case "check_type", "issue_description":
 			h.CheckType = i
 		case "finding":
@@ -220,10 +222,14 @@ func ParseFileHeader(row []string) (*FileHeader, error) {
 			h.Reviewer = i
 		case "github_id", "githubid":
 			h.GithubID = i
-			h.fileVersion = FileVersion2
+			if h.fileVersion < FileVersion2 {
+				h.fileVersion = FileVersion2
+			}
 		case "method":
 			h.Method = i
-			h.fileVersion = FileVersion3
+			if h.fileVersion < FileVersion3 {
+				h.fileVersion = FileVersion3
+			}
 		default:
 			return nil, fmt.Errorf("invalid column: %s", row[i])
 		}
