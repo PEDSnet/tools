@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/PEDSnet/tools/cmd/dqa/uni"
 )
@@ -122,6 +123,9 @@ func (r *Reader) Read() (*Result, error) {
 	if r.head.fileVersion >= FileVersion4 {
 		res.CheckAlias = row[r.head.CheckAlias]
 	}
+
+	// Clean field value.
+	res.Field = strings.Join(res.Fields(), ",")
 
 	return res, nil
 }
