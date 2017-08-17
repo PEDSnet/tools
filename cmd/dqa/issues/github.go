@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/csv"
+	"fmt"
 	"io"
 	"regexp"
 	"strconv"
@@ -113,13 +114,25 @@ func GetCatalog(token string) (Catalog, error) {
 
 		buf := uni.New(bytes.NewBufferString(content))
 		cr := csv.NewReader(buf)
-		if _, err := cr.Read(); err != nil {
+		head, err := cr.Read()
+		if err != nil {
 			continue
+		}
+
+		hlen := len(head)
+		if hlen != 5 && hlen != 6 {
+			return nil, fmt.Errorf("[%s] expected 5 or 6 columns, got %d", targetCode, hlen)
 		}
 
 		if _, ok := catalog[targetCode]; !ok {
 			catalog[targetCode] = make(map[[2]string]*Threshold)
 		}
+
+		var (
+			lower int
+			upper int
+			field string
+		)
 
 		for {
 			row, err := cr.Read()
@@ -129,17 +142,20 @@ func GetCatalog(token string) (Catalog, error) {
 				return nil, err
 			}
 
-			lower, err := strconv.Atoi(row[3])
-			if err != nil {
-				lower = 0
-			}
-			upper, err := strconv.Atoi(row[4])
-			if err != nil {
-				upper = 0
-			}
-
 			table := strings.ToLower(row[1])
-			field := strings.ToLower(row[2])
+
+			lower = 0
+			upper = 0
+
+			if hlen == 5 {
+				field = strings.ToLower(row[2])
+				lower, _ = strconv.Atoi(row[3])
+				upper, _ = strconv.Atoi(row[4])
+			} else {
+				field = strings.ToLower(strings.Join([]string{row[2], row[3]}, ","))
+				lower, _ = strconv.Atoi(row[4])
+				upper, _ = strconv.Atoi(row[5])
+			}
 
 			catalog[targetCode][[2]string{table, field}] = &Threshold{
 				Lower: lower,
