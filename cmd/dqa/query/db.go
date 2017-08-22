@@ -24,6 +24,7 @@ var columnNames = []string{
 	"field",
 	"goal",
 	"check_code",
+	"check_alias",
 	"check_type",
 	"finding",
 	"prevalence",
